@@ -6,10 +6,10 @@ Subject: [PATCH] Prevent duplicate UUID login crashes
 A non-player entity sharing a joining player's UUID must be discarded instead of cast to ServerPlayer. This removes the stored collision and lets the player connect without crashing the server.
 
 diff --git a/net/minecraft/server/level/ServerLevel.java b/net/minecraft/server/level/ServerLevel.java
-index 59598bfb95c2f8a38efd92685c46a954dc76739d..f37497cb4b40e0cbe457253f03c7ec708eda070e 100644
+index 381659a58d1066a8a9994f077ed39568c5e29df8..00270e03297b1131e6135d55dff9549791c87d34 100644
 --- a/net/minecraft/server/level/ServerLevel.java
 +++ b/net/minecraft/server/level/ServerLevel.java
-@@ -1621,9 +1621,16 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
+@@ -1666,9 +1666,16 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
      private void addPlayer(final ServerPlayer player) {
          Entity existing = this.getEntity(player.getUUID());
          if (existing != null) {
