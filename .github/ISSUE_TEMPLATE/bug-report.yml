@@ -20,11 +20,11 @@ body:
         Paste the full output of the `/version` command from your server. It includes
         everything needed to identify your build: the Minecraft version, the Scissors
         build number, commit and build date, the API and previous versions, whether you
-        are behind the latest build, and the upstream AdvancedSlimePaper build Scissors is based on.
+        are behind the latest build, and the upstream AdvancedSlimePaper commit Scissors is based on.
         Automatically formatted, no backticks needed.
       render: text
       placeholder: |
-        Version: 26.2-16-378bd23, based on AdvancedSlimePaper build 12
+        Version: 26.2-16-378bd23, based on AdvancedSlimePaper commit 6bc38be
         Built: 2026-07-29 19:50 UTC
         API: 26.2.build.16-stable
         Status: You are running the latest version
@@ -35,12 +35,12 @@ body:
   - type: input
     id: asp-version
     attributes:
-      label: AdvancedSlimePaper build tested against
+      label: AdvancedSlimePaper commit tested against
       description: >
-        The unmodified AdvancedSlimePaper build you confirmed the bug does NOT occur on. Must be the
-        same Minecraft version. `/version` on Scissors shows which AdvancedSlimePaper build your
+        The unmodified AdvancedSlimePaper commit you confirmed the bug does NOT occur on. Must be the
+        same Minecraft version. `/version` on Scissors shows which AdvancedSlimePaper commit your
         Scissors ASP build is based on — test against that one.
-      placeholder: "e.g. AdvancedSlimePaper build 12 (Minecraft 26.2)"
+      placeholder: "e.g. AdvancedSlimePaper commit 6bc38be (Minecraft 26.2)"
     validations:
       required: true
   - type: textarea
@@ -85,7 +85,7 @@ body:
         comparison. "I think it's Scissors" is not enough — reports without this
         will be closed.
       placeholder: |
-        AdvancedSlimePaper build & version tested:
+        AdvancedSlimePaper commit & version tested:
         Same steps on AdvancedSlimePaper produced: ...
         Attached: asp-run.mp4 / asp-console.log, scissors-run.mp4 / scissors-console.log
     validations:
