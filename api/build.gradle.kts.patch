@@ -1,0 +1,35 @@
+--- a/api/build.gradle.kts
++++ b/api/build.gradle.kts
+@@ -1,16 +_,21 @@
++// Scissors-ASP - replace ASP's buildSrc convention plugins with a standalone build script. Dependency versions mirror
++// ASP's gradle/libs.versions.toml. The Paper API artifact must match the Paper commit pinned by the selected aspRef.
+ plugins {
+-    id("asp.base-conventions")
+-    id("asp.publishing-conventions")
++    `java-library`
++}
++
++group = "com.infernalsuite.asp"
++
++sourceSets {
++    main {
++        java { srcDir("../asp-api/src/main/java") }
++        resources { srcDir("../asp-api/src/main/resources") }
++    }
+ }
+ 
+ dependencies {
+-    api(libs.annotations)
+-    api(libs.adventure.nbt)
+-
+-    compileOnly(paperApi())
+-}
+-
+-publishConfiguration {
+-    name = "Advanced Slime Paper API"
+-    description = "API for Advanced Slime Paper"
++    api("org.jspecify:jspecify:1.0.0")
++    api("net.kyori:adventure-nbt:5.1.1")
++
++    compileOnly("io.papermc.paper:paper-api:${providers.gradleProperty("paperApiVersion").get()}")
+ }

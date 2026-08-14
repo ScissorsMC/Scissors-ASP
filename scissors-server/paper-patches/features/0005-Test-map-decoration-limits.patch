@@ -1,0 +1,96 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Telesphoreo <me@telesphoreo.me>
+Date: Wed, 29 Jul 2026 00:40:45 -0400
+Subject: [PATCH] Test map decoration limits
+
+
+diff --git a/src/test/java/io/papermc/paper/scissors/MapDecorationsTest.java b/src/test/java/io/papermc/paper/scissors/MapDecorationsTest.java
+new file mode 100644
+index 0000000000000000000000000000000000000000..ba9bdc69fe26e9f6bd1ed15b1008981e255667b9
+--- /dev/null
++++ b/src/test/java/io/papermc/paper/scissors/MapDecorationsTest.java
+@@ -0,0 +1,84 @@
++package io.papermc.paper.scissors;
++
++import java.util.LinkedHashMap;
++import java.util.Map;
++import net.minecraft.network.chat.Component;
++import net.minecraft.network.protocol.game.ClientboundMapItemDataPacket;
++import net.minecraft.world.item.component.MapDecorations;
++import net.minecraft.world.level.saveddata.maps.MapDecoration;
++import net.minecraft.world.level.saveddata.maps.MapDecorationTypes;
++import net.minecraft.world.level.saveddata.maps.MapId;
++import org.bukkit.support.environment.AllFeatures;
++import org.junit.jupiter.api.Test;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertFalse;
++import static org.junit.jupiter.api.Assertions.assertThrows;
++import static org.junit.jupiter.api.Assertions.assertTrue;
++
++@AllFeatures
++class MapDecorationsTest {
++
++    @Test
++    void truncatesAndFreezesItemDecorations() {
++        final Map<String, MapDecorations.Entry> entries = new LinkedHashMap<>();
++        final MapDecorations.Entry entry = new MapDecorations.Entry(MapDecorationTypes.PLAYER, 0.0, 0.0, 0.0F);
++        for (int i = 0; i <= MapDecorations.MAX_DECORATIONS; i++) {
++            entries.put("decoration-" + i, entry);
++        }
++
++        final MapDecorations decorations = new MapDecorations(entries);
++
++        assertEquals(MapDecorations.MAX_DECORATIONS, decorations.decorations().size());
++        assertTrue(decorations.decorations().containsKey("decoration-0"));
++        assertFalse(decorations.decorations().containsKey("decoration-" + MapDecorations.MAX_DECORATIONS));
++        assertThrows(UnsupportedOperationException.class, () -> decorations.decorations().put("extra", entry));
++    }
++
++    @Test
++    void truncatesOutgoingMapDecorations() {
++        final MapDecoration decoration = new MapDecoration(MapDecorationTypes.PLAYER, (byte)0, (byte)0, (byte)0, java.util.Optional.empty());
++        final ClientboundMapItemDataPacket packet = new ClientboundMapItemDataPacket(
++            new MapId(0),
++            (byte)0,
++            false,
++            java.util.Collections.nCopies(MapDecorations.MAX_DECORATIONS + 1, decoration),
++            null
++        );
++
++        assertEquals(MapDecorations.MAX_DECORATIONS, packet.decorations().orElseThrow().size());
++    }
++
++    @Test
++    void stripsOnlyOversizedOutgoingDecorationNames() {
++        final MapDecoration oversized = new MapDecoration(
++            MapDecorationTypes.PLAYER, (byte)0, (byte)0, (byte)0, java.util.Optional.of(Component.literal("x".repeat(33)))
++        );
++        final MapDecoration boundary = new MapDecoration(
++            MapDecorationTypes.PLAYER, (byte)0, (byte)0, (byte)0, java.util.Optional.of(Component.literal("x".repeat(32)))
++        );
++        final ClientboundMapItemDataPacket packet = new ClientboundMapItemDataPacket(
++            new MapId(0), (byte)0, false, java.util.List.of(oversized, boundary), null
++        );
++
++        final java.util.List<MapDecoration> sanitized = packet.decorations().orElseThrow();
++        assertTrue(sanitized.get(0).name().isEmpty());
++        assertEquals(32, sanitized.get(1).name().orElseThrow().getString().length());
++    }
++
++    @Test
++    void stripsStructurallyOversizedDecorationNamesWithShortVisibleText() {
++        final net.minecraft.network.chat.MutableComponent name = Component.empty();
++        for (int i = 0; i <= 64; i++) {
++            name.append(Component.empty());
++        }
++        final MapDecoration decoration = new MapDecoration(
++            MapDecorationTypes.PLAYER, (byte)0, (byte)0, (byte)0, java.util.Optional.of(name)
++        );
++        final ClientboundMapItemDataPacket packet = new ClientboundMapItemDataPacket(
++            new MapId(0), (byte)0, false, java.util.List.of(decoration), null
++        );
++
++        assertTrue(packet.decorations().orElseThrow().getFirst().name().isEmpty());
++    }
++}

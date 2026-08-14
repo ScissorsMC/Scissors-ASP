@@ -1,0 +1,110 @@
+--- a/src/main/java/com/destroystokyo/paper/PaperVersionFetcher.java
++++ b/src/main/java/com/destroystokyo/paper/PaperVersionFetcher.java
+@@ -22,7 +_,6 @@
+ import net.kyori.adventure.text.logger.slf4j.ComponentLogger;
+ import net.kyori.adventure.text.event.ClickEvent;
+ import net.kyori.adventure.text.format.NamedTextColor;
+-import net.kyori.adventure.text.format.TextDecoration;
+ import org.checkerframework.checker.nullness.qual.NonNull;
+ import org.checkerframework.checker.nullness.qual.Nullable;
+ import org.checkerframework.framework.qual.DefaultQualifier;
+@@ -40,10 +_,10 @@
+     private static final ComponentLogger COMPONENT_LOGGER = ComponentLogger.logger(LogManager.getRootLogger().getName());
+     private static final int DISTANCE_ERROR = -1;
+     private static final int DISTANCE_UNKNOWN = -2;
+-    private static final String DOWNLOAD_PAGE = "https://infernalsuite.com/download/asp";
+-    private static final String REPOSITORY = "InfernalSuite/AdvancedSlimePaper";
++    private static final String DOWNLOAD_PAGE = "https://scissors.gg"; // Scissors
++    private static final String REPOSITORY = "ScissorsMC/Scissors-ASP"; // Scissors
+     private static final ServerBuildInfo BUILD_INFO = ServerBuildInfo.buildInfo();
+-    private static final String USER_AGENT = BUILD_INFO.brandName() + "/" + BUILD_INFO.asString(VERSION_SIMPLE) + " (https://papermc.io)";
++    private static final String USER_AGENT = BUILD_INFO.brandName() + "/" + BUILD_INFO.asString(VERSION_SIMPLE) + " (https://github.com/ScissorsMC/Scissors-ASP)"; // Scissors
+     private static final Gson GSON = new Gson();
+ 
+     @Override
+@@ -64,6 +_,24 @@
+         return history != null ? Component.textOfChildren(updateMessage, Component.newline(), history) : updateMessage;
+     }
+ 
++    // Scissors start - resolve the upstream AdvancedSlimePaper commit
++    private static @Nullable String aspRef() {
++        final java.util.jar.@Nullable Manifest manifest = io.papermc.paper.util.JarManifests.manifest(PaperVersionFetcher.class);
++        return manifest == null ? null : manifest.getMainAttributes().getValue("ASP-Ref");
++    }
++
++    public static @Nullable Component getAspReferenceMessage() {
++        final @Nullable String ref = aspRef();
++        if (ref == null || ref.isBlank()) {
++            return null;
++        }
++        final String shortRef = ref.substring(0, Math.min(7, ref.length()));
++        return text("based on AdvancedSlimePaper commit " + shortRef, NamedTextColor.WHITE)
++            .hoverEvent(text("Click to view the AdvancedSlimePaper commit", NamedTextColor.WHITE))
++            .clickEvent(ClickEvent.openUrl("https://github.com/InfernalSuite/AdvancedSlimePaper/commit/" + ref));
++    }
++    // Scissors end
++
+     public static void getUpdateStatusStartupMessage() {
+         int distance = DISTANCE_ERROR;
+ 
+@@ -140,7 +_,7 @@
+         final String currentVersion = PaperVersionFetcher.BUILD_INFO.minecraftVersionId();
+ 
+         try {
+-            final URL versionsUrl = URI.create("https://fill.papermc.io/v3/projects/paper").toURL();
++            final URL versionsUrl = URI.create("https://fill.scissors.gg/v3/projects/scissors").toURL(); // Scissors
+             final HttpURLConnection connection = (HttpURLConnection) versionsUrl.openConnection();
+             connection.setConnectTimeout(5000);
+             connection.setReadTimeout(5000);
+@@ -162,7 +_,7 @@
+                     }
+ 
+                     try {
+-                        final URL buildsUrl = URI.create("https://fill.papermc.io/v3/projects/paper/versions/" + latestVersion + "/builds/latest").toURL();
++                        final URL buildsUrl = URI.create("https://fill.scissors.gg/v3/projects/scissors/versions/" + latestVersion + "/builds/latest").toURL(); // Scissors
+                         final HttpURLConnection connection2 = (HttpURLConnection) buildsUrl.openConnection();
+                         connection2.setConnectTimeout(5000);
+                         connection2.setReadTimeout(5000);
+@@ -183,14 +_,14 @@
+                                 return Optional.of(new MinecraftVersionFetcher(latestVersion, distance));
+                             }
+                         } catch (final JsonSyntaxException ex) {
+-                            LOGGER.error("Error parsing json from Paper's downloads API", ex);
++                            LOGGER.error("Error parsing json from Scissors' downloads API", ex);
+                         }
+                     } catch (final IOException e) {
+                         LOGGER.error("Error while parsing latest build", e);
+                     }
+                 }
+             } catch (final JsonSyntaxException ex) {
+-                LOGGER.error("Error parsing json from Paper's downloads API", ex);
++                LOGGER.error("Error parsing json from Scissors' downloads API", ex);
+             }
+         } catch (final IOException e) {
+             LOGGER.error("Error while parsing version list", e);
+@@ -200,7 +_,7 @@
+ 
+     private static int fetchDistanceFromSiteApi(final int jenkinsBuild) {
+         try {
+-            final URL buildsUrl = URI.create("https://fill.papermc.io/v3/projects/paper/versions/" + PaperVersionFetcher.BUILD_INFO.minecraftVersionId() + "/builds").toURL();
++            final URL buildsUrl = URI.create("https://fill.scissors.gg/v3/projects/scissors/versions/" + PaperVersionFetcher.BUILD_INFO.minecraftVersionId() + "/builds").toURL(); // Scissors
+             final HttpURLConnection connection = (HttpURLConnection) buildsUrl.openConnection();
+             connection.setConnectTimeout(5000);
+             connection.setReadTimeout(5000);
+@@ -214,7 +_,7 @@
+                         .orElseThrow();
+                 return Math.max(latest - jenkinsBuild, 0);
+             } catch (final JsonSyntaxException ex) {
+-                LOGGER.error("Error parsing json from Paper's downloads API", ex);
++                LOGGER.error("Error parsing json from Scissors' downloads API", ex);
+                 return DISTANCE_ERROR;
+             }
+         } catch (final IOException e) {
+@@ -261,6 +_,6 @@
+             return null;
+         }
+ 
+-        return text("Previous version: " + oldVersion, NamedTextColor.GRAY, TextDecoration.ITALIC);
++        return text("Previous: ", color(0xAEBFD0)).append(text(oldVersion, NamedTextColor.WHITE)); // Scissors
+     }
+ }

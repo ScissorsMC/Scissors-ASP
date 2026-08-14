@@ -1,0 +1,295 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Telesphoreo <me@telesphoreo.me>
+Date: Wed, 29 Jul 2026 00:37:32 -0400
+Subject: [PATCH] Reject remote privileged packet targets
+
+Require privileged editor and tag-query targets to be loaded and within 32 blocks. Also reject invalid test-instance dimensions and jigsaw depths before mutation, discard client-supplied execution state, and rate-limit abuse logging.
+
+diff --git a/net/minecraft/network/protocol/game/ServerboundJigsawGeneratePacket.java b/net/minecraft/network/protocol/game/ServerboundJigsawGeneratePacket.java
+index bbb9797a578eec3fe63ead51b67178f4c1c6964d..9afbfdaeeb6ec74265121b645ac45024969e875e 100644
+--- a/net/minecraft/network/protocol/game/ServerboundJigsawGeneratePacket.java
++++ b/net/minecraft/network/protocol/game/ServerboundJigsawGeneratePacket.java
+@@ -5,6 +5,7 @@ import net.minecraft.network.FriendlyByteBuf;
+ import net.minecraft.network.codec.StreamCodec;
+ import net.minecraft.network.protocol.Packet;
+ import net.minecraft.network.protocol.PacketType;
++import net.minecraft.world.level.levelgen.structure.structures.JigsawStructure;
+ 
+ public class ServerboundJigsawGeneratePacket implements Packet<ServerGamePacketListener> {
+     public static final StreamCodec<FriendlyByteBuf, ServerboundJigsawGeneratePacket> STREAM_CODEC = Packet.codec(
+@@ -50,6 +51,11 @@ public class ServerboundJigsawGeneratePacket implements Packet<ServerGamePacketL
+         return this.levels;
+     }
+ 
++    // Scissors - reject packet depths outside the same range as jigsaw structures and /place jigsaw
++    public boolean hasValidLevels() {
++        return this.levels >= JigsawStructure.MIN_DEPTH && this.levels <= JigsawStructure.MAX_DEPTH;
++    }
++
+     public boolean keepJigsaws() {
+         return this.keepJigsaws;
+     }
+diff --git a/net/minecraft/network/protocol/game/ServerboundSetCommandMinecartPacket.java b/net/minecraft/network/protocol/game/ServerboundSetCommandMinecartPacket.java
+index 20c1ebd9514b0e2b0e8014d052c9d760c5daaf28..b3f5496f0470e544e659fe1d43785e626ff4f02c 100644
+--- a/net/minecraft/network/protocol/game/ServerboundSetCommandMinecartPacket.java
++++ b/net/minecraft/network/protocol/game/ServerboundSetCommandMinecartPacket.java
+@@ -49,6 +49,11 @@ public class ServerboundSetCommandMinecartPacket implements Packet<ServerGamePac
+         return level.getEntity(this.entity) instanceof MinecartCommandBlock minecartCommandBlock ? minecartCommandBlock.getCommandBlock() : null;
+     }
+ 
++    // Scissors - expose the target so the server can validate its distance before editing it
++    public int getEntityId() {
++        return this.entity;
++    }
++
+     public String getCommand() {
+         return this.command;
+     }
+diff --git a/net/minecraft/server/network/ServerGamePacketListenerImpl.java b/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+index 7afc4d02dc051dc40c6225c1bb958c89ecbcc027..32cf2dd6f387f67d3694020b8d33a39c2a09cad6 100644
+--- a/net/minecraft/server/network/ServerGamePacketListenerImpl.java
++++ b/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+@@ -270,6 +270,8 @@ public class ServerGamePacketListenerImpl
+     private static final int MAX_COMMAND_SUGGESTIONS = 1000;
+     private static final long UNSAFE_CREATIVE_ITEM_LOG_INTERVAL = TimeUnit.SECONDS.toMillis(1L); // Scissors - rate-limit exploit logging
+     private static final long NESTED_COMMAND_SUGGESTION_LOG_INTERVAL = TimeUnit.SECONDS.toMillis(1L); // Scissors - rate-limit exploit logging
++    private static final double MAX_PRIVILEGED_PACKET_DISTANCE_SQUARED = 32.0 * 32.0; // Scissors - remote editor/query packets
++    private static final long INVALID_PRIVILEGED_PACKET_LOG_INTERVAL = TimeUnit.SECONDS.toMillis(1L); // Scissors - rate-limit exploit logging
+     public ServerPlayer player;
+     public final PlayerChunkSender chunkSender;
+     private int tickCount;
+@@ -281,6 +283,7 @@ public class ServerGamePacketListenerImpl
+     private final TickThrottler recipeSpamPackets = new TickThrottler(io.papermc.paper.configuration.GlobalConfiguration.get().spamLimiter.recipeSpamIncrement, io.papermc.paper.configuration.GlobalConfiguration.get().spamLimiter.recipeSpamLimit);
+     private long lastUnsafeCreativeItemWarning; // Scissors - rate-limit exploit logging
+     private long lastNestedCommandSuggestionWarning; // Scissors - rate-limit exploit logging
++    private long lastInvalidPrivilegedPacketWarning; // Scissors - rate-limit exploit logging
+     private double firstGoodX;
+     private double firstGoodY;
+     private double firstGoodZ;
+@@ -961,9 +964,12 @@ public class ServerGamePacketListenerImpl
+         if (!this.player.canUseGameMasterBlocks() && (!this.player.isCreative() || !this.player.getBukkitEntity().hasPermission("minecraft.commandblock"))) { // Paper - command block permission
+             this.player.sendSystemMessage(Component.translatable("advMode.notAllowed"));
+         } else {
++            BlockPos blockPos = packet.getPos();
++            if (!this.isValidPrivilegedBlockTarget(blockPos, "command block edit")) {
++                return;
++            }
+             BaseCommandBlock commandBlock = null;
+             CommandBlockEntity autoCommandBlock = null;
+-            BlockPos blockPos = packet.getPos();
+             BlockEntity blockEntity = this.player.level().getBlockEntity(blockPos);
+             if (blockEntity instanceof CommandBlockEntity commandBlockEntity) {
+                 autoCommandBlock = commandBlockEntity;
+@@ -1022,7 +1028,12 @@ public class ServerGamePacketListenerImpl
+         if (!this.player.canUseGameMasterBlocks() && (!this.player.isCreative() || !this.player.getBukkitEntity().hasPermission("minecraft.commandblock"))) { // Paper - command block permission
+             this.player.sendSystemMessage(Component.translatable("advMode.notAllowed"));
+         } else {
+-            BaseCommandBlock commandBlock = packet.getCommandBlock(this.player.level());
++            Entity entity = this.player.level().getEntity(packet.getEntityId());
++            if (!(entity instanceof net.minecraft.world.entity.vehicle.minecart.MinecartCommandBlock minecart)
++                || !this.isValidPrivilegedEntityTarget(minecart, "command minecart edit")) {
++                return;
++            }
++            BaseCommandBlock commandBlock = minecart.getCommandBlock();
+             if (commandBlock != null) {
+                 String command = packet.getCommand();
+                 commandBlock.setCommand(command);
+@@ -1194,6 +1205,9 @@ public class ServerGamePacketListenerImpl
+         PacketUtils.ensureRunningOnSameThread(packet, this, this.player.level());
+         if (this.player.canUseGameMasterBlocks()) {
+             BlockPos blockPos = packet.getPos();
++            if (!this.isValidPrivilegedBlockTarget(blockPos, "structure block edit")) {
++                return;
++            }
+             BlockState state = this.player.level().getBlockState(blockPos);
+             if (this.player.level().getBlockEntity(blockPos) instanceof StructureBlockEntity structure) {
+                 structure.setMode(packet.getMode());
+@@ -1247,6 +1261,9 @@ public class ServerGamePacketListenerImpl
+         PacketUtils.ensureRunningOnSameThread(packet, this, this.player.level());
+         if (this.player.canUseGameMasterBlocks()) {
+             BlockPos blockPos = packet.position();
++            if (!this.isValidPrivilegedBlockTarget(blockPos, "test block edit")) {
++                return;
++            }
+             BlockState initialState = this.player.level().getBlockState(blockPos);
+             if (this.player.level().getBlockEntity(blockPos) instanceof TestBlockEntity testBlock) {
+                 testBlock.setMode(packet.mode());
+@@ -1261,10 +1278,25 @@ public class ServerGamePacketListenerImpl
+     public void handleTestInstanceBlockAction(final ServerboundTestInstanceBlockActionPacket packet) {
+         PacketUtils.ensureRunningOnSameThread(packet, this, this.player.level());
+         BlockPos pos = packet.pos();
+-        if (this.player.canUseGameMasterBlocks() && this.player.level().getBlockEntity(pos) instanceof TestInstanceBlockEntity blockEntity) {
++        if (this.player.canUseGameMasterBlocks()
++            && this.isValidPrivilegedBlockTarget(pos, "test instance block action")
++            && this.player.level().getBlockEntity(pos) instanceof TestInstanceBlockEntity blockEntity) {
+             if (packet.action() != ServerboundTestInstanceBlockActionPacket.Action.QUERY
+                 && packet.action() != ServerboundTestInstanceBlockActionPacket.Action.INIT) {
+-                blockEntity.set(packet.data());
++                TestInstanceBlockEntity.Data data = packet.data();
++                if (!TestInstanceBlockEntity.isValidSize(data.size())) {
++                    this.logInvalidPrivilegedPacket("test instance block action", "invalid size " + data.size());
++                    return;
++                }
++                // Scissors - the client may edit configuration, but never authoritative execution status or errors
++                blockEntity.set(new TestInstanceBlockEntity.Data(
++                    data.test(),
++                    data.size(),
++                    data.rotation(),
++                    data.ignoreEntities(),
++                    TestInstanceBlockEntity.Status.CLEARED,
++                    Optional.empty()
++                ));
+                 if (packet.action() == ServerboundTestInstanceBlockActionPacket.Action.RESET) {
+                     blockEntity.resetTest(this.player::sendSystemMessage);
+                 } else if (packet.action() == ServerboundTestInstanceBlockActionPacket.Action.SAVE) {
+@@ -1306,6 +1338,9 @@ public class ServerGamePacketListenerImpl
+         PacketUtils.ensureRunningOnSameThread(packet, this, this.player.level());
+         if (this.player.canUseGameMasterBlocks()) {
+             BlockPos blockPos = packet.getPos();
++            if (!this.isValidPrivilegedBlockTarget(blockPos, "jigsaw block edit")) {
++                return;
++            }
+             BlockState state = this.player.level().getBlockState(blockPos);
+             if (this.player.level().getBlockEntity(blockPos) instanceof JigsawBlockEntity jigsaw) {
+                 jigsaw.setName(packet.getName());
+@@ -1326,6 +1361,13 @@ public class ServerGamePacketListenerImpl
+         PacketUtils.ensureRunningOnSameThread(packet, this, this.player.level());
+         if (this.player.canUseGameMasterBlocks()) {
+             BlockPos blockPos = packet.getPos();
++            if (!this.isValidPrivilegedBlockTarget(blockPos, "jigsaw generation")) {
++                return;
++            }
++            if (!packet.hasValidLevels()) {
++                this.logInvalidPrivilegedPacket("jigsaw generation", "invalid depth " + packet.levels());
++                return;
++            }
+             if (this.player.level().getBlockEntity(blockPos) instanceof JigsawBlockEntity jigsaw) {
+                 jigsaw.generate(this.player.level(), packet.levels(), packet.keepJigsaws());
+             }
+@@ -1449,7 +1491,7 @@ public class ServerGamePacketListenerImpl
+         PacketUtils.ensureRunningOnSameThread(packet, this, this.player.level());
+         if (this.player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)) {
+             Entity entity = this.player.level().getEntity(packet.getEntityId());
+-            if (entity != null) {
++            if (entity != null && this.isValidPrivilegedEntityTarget(entity, "entity tag query")) {
+                 try (ProblemReporter.ScopedCollector reporter = new ProblemReporter.ScopedCollector(entity.problemPath(), LOGGER)) {
+                     TagValueOutput output = TagValueOutput.createWithContext(reporter, entity.registryAccess());
+                     entity.saveWithoutId(output);
+@@ -1473,13 +1515,48 @@ public class ServerGamePacketListenerImpl
+     @Override
+     public void handleBlockEntityTagQuery(final ServerboundBlockEntityTagQueryPacket packet) {
+         PacketUtils.ensureRunningOnSameThread(packet, this, this.player.level());
+-        if (this.player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)) {
++        if (this.player.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)
++            && this.isValidPrivilegedBlockTarget(packet.getPos(), "block entity tag query")) {
+             BlockEntity blockEntity = this.player.level().getBlockEntity(packet.getPos());
+             CompoundTag tag = blockEntity != null ? blockEntity.saveWithoutMetadata(this.player.registryAccess()) : null;
+             this.send(new ClientboundTagQueryPacket(packet.getTransactionId(), tag));
+         }
+     }
+ 
++    // Scissors start - discard remote privileged packet targets before any path can load or operate on their chunks
++    private boolean isValidPrivilegedBlockTarget(final BlockPos pos, final String action) {
++        ServerLevel level = this.player.level();
++        boolean valid = level.isLoadedAndInBounds(pos)
++            && this.player.position().distanceToSqr(Vec3.atCenterOf(pos)) <= MAX_PRIVILEGED_PACKET_DISTANCE_SQUARED;
++        if (!valid) {
++            this.logInvalidPrivilegedPacket(action, pos.toShortString());
++        }
++        return valid;
++    }
++
++    private boolean isValidPrivilegedEntityTarget(final Entity entity, final String action) {
++        boolean valid = entity.level() == this.player.level()
++            && this.player.position().distanceToSqr(entity.position()) <= MAX_PRIVILEGED_PACKET_DISTANCE_SQUARED;
++        if (!valid) {
++            this.logInvalidPrivilegedPacket(action, entity.getType() + " " + entity.getUUID());
++        }
++        return valid;
++    }
++
++    private void logInvalidPrivilegedPacket(final String action, final String target) {
++        long now = Util.getMillis();
++        if (now - this.lastInvalidPrivilegedPacketWarning >= INVALID_PRIVILEGED_PACKET_LOG_INTERVAL) {
++            this.lastInvalidPrivilegedPacketWarning = now;
++            LOGGER.warn(
++                "Discarding remote {} packet from {} targeting {}; target must be loaded and within 32 blocks",
++                action,
++                this.player.getScoreboardName(),
++                target
++            );
++        }
++    }
++    // Scissors end - discard remote privileged packet targets before any path can load or operate on their chunks
++
+     @Override
+     public void handleMovePlayer(final ServerboundMovePlayerPacket packet) {
+         PacketUtils.ensureRunningOnSameThread(packet, this, this.player.level());
+diff --git a/net/minecraft/world/level/block/entity/TestInstanceBlockEntity.java b/net/minecraft/world/level/block/entity/TestInstanceBlockEntity.java
+index 5b9fafbe1276cca32a8a120889d95b895cfbbe1b..579eddc9e6743a07b0fd789b11cdb865db0bb00d 100644
+--- a/net/minecraft/world/level/block/entity/TestInstanceBlockEntity.java
++++ b/net/minecraft/world/level/block/entity/TestInstanceBlockEntity.java
+@@ -8,6 +8,8 @@ import java.nio.file.Path;
+ import java.util.ArrayList;
+ import java.util.List;
+ import java.util.Optional;
++import java.util.concurrent.TimeUnit;
++import java.util.concurrent.atomic.AtomicLong;
+ import java.util.function.Consumer;
+ import java.util.function.IntFunction;
+ import net.minecraft.ChatFormatting;
+@@ -36,6 +38,7 @@ import net.minecraft.resources.ResourceKey;
+ import net.minecraft.server.level.ServerLevel;
+ import net.minecraft.util.ARGB;
+ import net.minecraft.util.ByIdMap;
++import net.minecraft.util.Mth;
+ import net.minecraft.util.StringRepresentable;
+ import net.minecraft.world.entity.Entity;
+ import net.minecraft.world.entity.player.Player;
+@@ -55,6 +58,7 @@ import org.slf4j.Logger;
+ 
+ public class TestInstanceBlockEntity extends BlockEntity implements BoundingBoxRenderable, BeaconBeamOwner {
+     private static final Logger LOGGER = LogUtils.getLogger();
++    private static final AtomicLong NEXT_INVALID_SIZE_WARNING_NANOS = new AtomicLong();
+     private static final Component INVALID_TEST_NAME = Component.translatable("test_instance_block.invalid_test");
+     private static final List<BeaconBeamOwner.Section> BEAM_CLEARED = List.of();
+     private static final List<BeaconBeamOwner.Section> BEAM_RUNNING = List.of(new BeaconBeamOwner.Section(ARGB.color(128, 128, 128)));
+@@ -73,10 +77,37 @@ public class TestInstanceBlockEntity extends BlockEntity implements BoundingBoxR
+     }
+ 
+     public void set(final TestInstanceBlockEntity.Data data) {
+-        this.data = data;
++        Vec3i size = data.size();
++        Vec3i sanitizedSize = new Vec3i(
++            Mth.clamp(size.getX(), 0, StructureBlockEntity.MAX_SIZE_PER_AXIS),
++            Mth.clamp(size.getY(), 0, StructureBlockEntity.MAX_SIZE_PER_AXIS),
++            Mth.clamp(size.getZ(), 0, StructureBlockEntity.MAX_SIZE_PER_AXIS)
++        );
++        if (!sanitizedSize.equals(size)) {
++            long now = System.nanoTime();
++            long nextWarning = NEXT_INVALID_SIZE_WARNING_NANOS.get();
++            if (now >= nextWarning
++                && NEXT_INVALID_SIZE_WARNING_NANOS.compareAndSet(nextWarning, now + TimeUnit.SECONDS.toNanos(10))) {
++                LOGGER.warn(
++                    "Sanitized invalid test instance size {} at {}; each axis must be between 0 and {}",
++                    size,
++                    this.getBlockPos().toShortString(),
++                    StructureBlockEntity.MAX_SIZE_PER_AXIS
++                );
++            }
++            this.data = data.withSize(sanitizedSize);
++        } else {
++            this.data = data;
++        }
+         this.setChanged();
+     }
+ 
++    public static boolean isValidSize(final Vec3i size) {
++        return size.getX() >= 0 && size.getX() <= StructureBlockEntity.MAX_SIZE_PER_AXIS
++            && size.getY() >= 0 && size.getY() <= StructureBlockEntity.MAX_SIZE_PER_AXIS
++            && size.getZ() >= 0 && size.getZ() <= StructureBlockEntity.MAX_SIZE_PER_AXIS;
++    }
++
+     public static Optional<Vec3i> getStructureSize(final ServerLevel level, final ResourceKey<GameTestInstance> testKey) {
+         return getStructureTemplate(level, testKey).map(StructureTemplate::getSize);
+     }

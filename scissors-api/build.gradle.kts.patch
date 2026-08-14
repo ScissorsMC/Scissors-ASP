@@ -1,0 +1,10 @@
+--- a/aspaper-api/build.gradle.kts
++++ b/aspaper-api/build.gradle.kts
+@@ -1,6 +_,7 @@
+ //import io.papermc.paperweight.checkstyle.JavadocTag //
+ import paper.libs.com.google.gson.Gson
+ 
++// Scissors-ASP - Scissors API layered on AdvancedSlimePaper
+ plugins {
+     `java-library`
+     `maven-publish`
