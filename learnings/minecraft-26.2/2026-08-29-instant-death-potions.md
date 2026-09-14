@@ -2,8 +2,10 @@
 
 - Recorded: 2026-08-29
 - Applies to: Minecraft 26.2
+- Scissors and Folia Paper: `37dc5450d9b7acb2e367e8f1fbe0f07bb01334d9`
+- Folia: `68b2af18edf378b89dfbef1d86bd21759cb81aad`
 - AdvancedSlimePaper: `6b648237b8158dcbf4b2ba3f4ab12b8cb2ceec42`
-- Paper: `de518f79b596e0b9f70a0d04fdd8a2a55587df1f`
+- ASP's embedded Paper: `de518f79b596e0b9f70a0d04fdd8a2a55587df1f`
 - Revalidate after changing any version above
 
 ## Crash mechanism
@@ -25,9 +27,11 @@ ViaVersion bookkeeping is not part of the arithmetic trigger.
   nested-item recursion, and final client-bound encoding. Creative comparison sees the changed potion component, logs
   the player, and explicitly overwrites the client's saved-toolbar copy.
 - `PotionContents` sanitizes before exposing or applying effects, and stored/programmatically assigned area-effect
-  clouds and tipped arrows sanitize their contents.
+  clouds and tipped arrows sanitize their contents. This covers direct construction that has not yet crossed item
+  serialization.
 - `HealOrHarmMobEffect` uses saturating, non-negative arithmetic for both tick and splash application. This final sink
-  protects raw NMS callers while preserving vanilla Instant Health/Damage I/II and splash-scale amounts.
+  protects raw NMS callers that bypass potion carriers while preserving the exact vanilla Instant Health I/II,
+  Instant Damage I/II, and splash-scale amounts.
 - Sanitation warnings identify the effect and old/new amplifiers and are rate-limited to prevent log spam.
 
 The amplifier cap deliberately restricts command/plugin-created custom potions above level II. Other mob-effect types
@@ -37,6 +41,8 @@ retain their configured amplifiers.
 
 1. `InstantHealthOverflowTest` proves `4 << 125` reproduces the negative overflow while the replacement calculation
    saturates to a non-negative amount.
-2. It verifies vanilla amounts and splash scaling, storage decode, creative comparison, Instant Damage, and safe
-   sibling preservation.
-3. Rock page `14-instant-death-potions.md` and saved-toolbar group 2 slot 7 carry the version-scoped fixture.
+2. The same test verifies vanilla amounts and splash scaling are unchanged, the supplied custom potion is copied with
+   amplifier `1`, its original is untouched, Instant Damage follows the same rule, and an unrelated high-amplifier
+   effect survives. The Folia and ASP notes also record storage-decode and creative-comparison checks.
+3. Rock page `14-instant-death-potions.md` and saved-toolbar group 2 slot 7 carry the version-scoped amplifier-125
+   fixture for creative-ingress and explicit-slot-correction testing.
