@@ -59,6 +59,29 @@ Read [AGENTS.md](AGENTS.md) before contributing. It defines the patch workflow,
 Git boundaries, the Scissors/AdvancedSlimePaper/Paper naming boundary, and
 required verification.
 
+## Version branches and publishing
+
+Use `master` for the latest Minecraft version.
+Keep older versions on `ver/<mcVersion>` branches, such as `ver/26.2`.
+Before you update `master` to a new Minecraft version, create the older
+version branch from the last commit for that version. Include the version-branch
+workflow changes in both branches.
+
+Pushes to `master` and `ver/*` in `ScissorsMC/Scissors-ASP` run the full publishing
+pipeline: allocate a build number, apply patches, run the build and tests,
+create the Paperclip JAR, and publish to Fill. Other branches and fork pull
+requests run build checks without publishing.
+
+On a version branch, keep `mcVersion` in `gradle.properties` equal to the
+version in the branch name. The workflow checks this before allocating a build
+number. Build numbers use the `scissors-asp-<mcVersion>` track. Fill versions also
+use `mcVersion`, so each Minecraft version has separate builds. Keep the
+matching `apiVersion`, `paperApiVersion`, ASP pin, and build requirements on each branch.
+
+The GitHub `fill` environment must allow the `master` and `ver/*` branch
+patterns. It holds the publishing secrets. Keep feature branches and tags out
+of this environment. Review the live environment rules before you change them.
+
 ## License
 
 Scissors ASP is distributed under the GNU General Public License version 3
