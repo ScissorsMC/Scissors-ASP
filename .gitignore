@@ -17,6 +17,9 @@ build
 /asp-api
 /asp-core
 /asp-server
+/aspaper-checkstyle/build.gradle.kts
+/paper-checkstyle
+/.checkstyle
 
 .idea/
 

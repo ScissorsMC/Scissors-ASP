@@ -23,6 +23,10 @@ for (name in listOf("api", "core")) {
     file(name).mkdirs()
 }
 
+// ASP's API build uses the upstream Checkstyle module.
+include("aspaper-checkstyle")
+file("aspaper-checkstyle").mkdirs()
+
 // optionalInclude("test-plugin") // possibly include a test plugin for your fork.
 
 fun optionalInclude(name: String, op: (ProjectDescriptor.() -> Unit)? = null) {

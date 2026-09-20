@@ -30,6 +30,22 @@ paperweight {
             patchesDir = file("scissors-api/paper-patches")
             outputDir = file("paper-api")
         }
+        patchFile {
+            path = "aspaper-checkstyle/build.gradle.kts"
+            outputFile = file("aspaper-checkstyle/build.gradle.kts")
+            patchFile = file("aspaper-checkstyle/build.gradle.kts.patch")
+        }
+        patchRepo("paperCheckstyle") {
+            upstreamPath = "paper-checkstyle"
+            excludes = setOf("build.gradle.kts")
+            patchesDir = file("scissors-api/paper-checkstyle-patches")
+            outputDir = file("paper-checkstyle")
+        }
+        patchRepo("paperCheckstyleConfig") {
+            upstreamPath = ".checkstyle"
+            patchesDir = file("scissors-api/paper-checkstyle-config-patches")
+            outputDir = file(".checkstyle")
+        }
         // ASP's aspaper modules depend on its slime `api` and `core` projects. The paperweight patch config below
         // materializes both upstream-owned projects without renaming them to Scissors. Their build scripts are
         // patched to stand alone because the upstream versions rely on ASP's buildSrc convention plugins.
