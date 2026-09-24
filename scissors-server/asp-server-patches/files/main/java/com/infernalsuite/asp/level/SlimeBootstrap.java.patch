@@ -1,0 +1,14 @@
+--- a/main/java/com/infernalsuite/asp/level/SlimeBootstrap.java
++++ b/main/java/com/infernalsuite/asp/level/SlimeBootstrap.java
+@@ -3,6 +_,10 @@
+ import com.infernalsuite.asp.api.world.SlimeWorld;
+ 
+ public record SlimeBootstrap(
+-        SlimeWorld initial
++        SlimeWorld initial,
++        FlatWorldGenerator flatWorldGenerator
+ ) {
++    public SlimeBootstrap(SlimeWorld initial) {
++        this(initial, FlatWorldGenerator.fromWorld(initial));
++    }
+ }

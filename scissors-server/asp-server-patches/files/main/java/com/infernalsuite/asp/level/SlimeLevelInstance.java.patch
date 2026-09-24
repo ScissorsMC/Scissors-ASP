@@ -1,0 +1,61 @@
+--- a/main/java/com/infernalsuite/asp/level/SlimeLevelInstance.java
++++ b/main/java/com/infernalsuite/asp/level/SlimeLevelInstance.java
+@@ -98,6 +_,7 @@
+             .setNameFormat("SWM Pool Thread #%1$d").build());
+ 
+     private final Object saveLock = new Object();
++    private CompletableFuture<Void> saveTail = CompletableFuture.completedFuture(null);
+     private final boolean isFlat;
+ 
+     public SlimeLevelInstance(SlimeBootstrap slimeBootstrap, PrimaryLevelData primaryLevelData,
+@@ -162,7 +_,8 @@
+                 new ReadOnlyDimensionDataStorage(CUSTOM_LEVEL_STORAGE_ACCESS.getDimensionPath(dimensionKey), MinecraftServer.getServer().getFixerUpper(), MinecraftServer.getServer().registryAccess()),
+                 data
+         );
+-        this.isFlat = slimeBootstrap.initial().getPropertyMap().getValue(SlimeProperties.WORLD_TYPE).equalsIgnoreCase("flat");
++        this.isFlat = slimeBootstrap.flatWorldGenerator() != null
++                || slimeBootstrap.initial().getPropertyMap().getValue(SlimeProperties.WORLD_TYPE).equalsIgnoreCase("flat");
+ 
+         this.slimeInstance = new SlimeInMemoryWorld(slimeBootstrap, this);
+ 
+@@ -191,6 +_,9 @@
+ 
+     @Override
+     public @NotNull ChunkGenerator getGenerator(SlimeBootstrap slimeBootstrap) {
++        if (slimeBootstrap.flatWorldGenerator() != null) {
++            return new SlimeLevelGenerator(slimeBootstrap.flatWorldGenerator().biome(), this);
++        }
+         String biomeStr = slimeBootstrap.initial().getPropertyMap().getValue(SlimeProperties.DEFAULT_BIOME);
+         ResourceKey<Biome> biomeKey = ResourceKey.create(Registries.BIOME, Identifier.parse(biomeStr));
+         Holder<Biome> defaultBiome = MinecraftServer.getServer().registryAccess().lookupOrThrow(Registries.BIOME).get(biomeKey).orElseThrow();
+@@ -208,7 +_,7 @@
+ 
+     @Override
+     public void saveIncrementally(boolean doFull) {
+-        if(doFull) {
++        if(doFull && !this.noSave) {
+             //Avoid doing the internal save because it saves the level.dat into the temp folder. That causes pterodactyl users to have issues.
+             save();
+         }
+@@ -241,7 +_,8 @@
+             long start = System.currentTimeMillis();
+ 
+             SlimeWorld world = this.slimeInstance.getSerializableCopy();
+-            return WORLD_SAVER_SERVICE.submit(() -> {
++            // Serialize writes for this world. A completed save must include all earlier snapshots.
++            saveTail = saveTail.handle((unused, failure) -> null).thenRunAsync(() -> {
+                 try {
+                     byte[] serializedWorld = SlimeSerializer.serialize(world);
+                     long saveStart = System.currentTimeMillis();
+@@ -249,8 +_,10 @@
+                     LOGGER.debug("World {} serialized in {}ms and saved in {}ms.", slimeWorld.getName(), saveStart - start, System.currentTimeMillis() - saveStart);
+                 } catch (Exception ex) {
+                     LOGGER.error("There was an issue saving world {} asynchronously.", slimeWorld.getName(), ex);
++                    throw new CompletionException(ex);
+                 }
+-            });
++            }, WORLD_SAVER_SERVICE);
++            return saveTail;
+ 
+         }
+     }

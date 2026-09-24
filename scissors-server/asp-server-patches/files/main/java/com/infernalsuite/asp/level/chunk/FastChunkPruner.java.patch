@@ -1,0 +1,93 @@
+--- a/main/java/com/infernalsuite/asp/level/chunk/FastChunkPruner.java
++++ b/main/java/com/infernalsuite/asp/level/chunk/FastChunkPruner.java
+@@ -2,6 +_,16 @@
+ 
+ import ca.spottedleaf.moonrise.patches.chunk_system.level.entity.ChunkEntitySlices;
+ import ca.spottedleaf.moonrise.patches.chunk_system.scheduling.NewChunkHolder;
++import ca.spottedleaf.moonrise.patches.chunk_system.level.poi.PoiChunk;
++import com.infernalsuite.asp.api.world.SlimeChunk;
++import com.infernalsuite.asp.api.world.SlimeFlatWorldProfile;
++import com.infernalsuite.asp.level.FlatWorldGenerator;
++import com.infernalsuite.asp.level.SlimeInMemoryWorld;
++import com.infernalsuite.asp.level.SlimeLevelInstance;
++import net.kyori.adventure.nbt.BinaryTag;
++import net.kyori.adventure.nbt.CompoundBinaryTag;
++import java.util.Map;
++import it.unimi.dsi.fastutil.shorts.ShortList;
+ import com.infernalsuite.asp.api.world.SlimeWorld;
+ import com.infernalsuite.asp.api.world.properties.SlimeProperties;
+ import com.infernalsuite.asp.api.world.properties.SlimePropertyMap;
+@@ -16,6 +_,10 @@
+     }
+ 
+     public static boolean canBePruned(SlimeWorld world, LevelChunk chunk, ChunkEntitySlices slices) {
++        return canBePruned(world, chunk, slices, null);
++    }
++
++    public static boolean canBePruned(SlimeWorld world, LevelChunk chunk, ChunkEntitySlices slices, PoiChunk poiChunk) {
+         NewChunkHolder chunkHolder = NmsUtil.getChunkHolder(chunk);
+ 
+         // Kenox <muranelp@gmail.com>
+@@ -25,6 +_,42 @@
+             return false;
+         }
+ 
++        FlatWorldGenerator generator = chunk.level instanceof SlimeLevelInstance level
++                && level.getSlimeInstance() instanceof SlimeInMemoryWorld memory ? memory.flatWorldGenerator() : null;
++        if (generator != null || world.getExtraData().containsKey(SlimeFlatWorldProfile.EXTRA_DATA_KEY)) {
++            if (generator == null) {
++                return false;
++            }
++            generator.verifyProfile(world);
++            if (slices == null) {
++                slices = chunkHolder.getEntityChunk();
++            }
++            if (poiChunk == null) {
++                poiChunk = chunkHolder.getPoiChunk();
++            }
++            // A missing entity snapshot does not prove that stored entities are absent.
++            if (slices == null || slices.isTransient() || !slices.isEmpty()
++                    || !chunk.getBlockEntitiesPos().isEmpty() || !chunk.persistentDataContainer.isEmpty()
++                    || chunk.getBlockTicks().count() != 0 || chunk.getFluidTicks().count() != 0
++                    || (poiChunk != null && !poiChunk.isEmpty())
++                    || !chunk.getUpgradeData().isEmpty() || chunk.getBlendingData() != null
++                    || !chunk.getAllStarts().isEmpty() || !chunk.getAllReferences().isEmpty()) {
++                return false;
++            }
++            for (ShortList pending : chunk.getPostProcessing()) {
++                if (pending != null && !pending.isEmpty()) {
++                    return false;
++                }
++            }
++            SlimeChunk stored = chunk instanceof SlimeChunkLevel slimeChunk
++                    ? slimeChunk.getNmsSlimeChunk() : world.getChunk(chunk.locX, chunk.locZ);
++            if (stored != null && (!hasNoExtraData(stored.getExtraData())
++                    || (stored.getUpgradeData() != null && !stored.getUpgradeData().isEmpty()))) {
++                return false;
++            }
++            return generator.matchesBaseline(chunk);
++        }
++
+         SlimePropertyMap propertyMap = world.getPropertyMap();
+         if (propertyMap.getValue(SlimeProperties.SHOULD_LIMIT_SAVE)) {
+             int minX = propertyMap.getValue(SlimeProperties.SAVE_MIN_X);
+@@ -56,6 +_,19 @@
+         }
+ 
+         return false;
++    }
++
++    private static boolean hasNoExtraData(Map<String, BinaryTag> extra) {
++        if (extra == null) {
++            return false;
++        }
++        for (Map.Entry<String, BinaryTag> entry : extra.entrySet()) {
++            if (!entry.getKey().equals("ChunkBukkitValues")
++                    || !(entry.getValue() instanceof CompoundBinaryTag compound) || !compound.isEmpty()) {
++                return false;
++            }
++        }
++        return true;
+     }
+ 
+     private static boolean areSectionsEmpty(LevelChunk chunk) {

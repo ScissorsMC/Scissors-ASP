@@ -1,0 +1,21 @@
+--- a/src/main/java/com/infernalsuite/asp/serialization/slime/ChunkPruner.java
++++ b/src/main/java/com/infernalsuite/asp/serialization/slime/ChunkPruner.java
+@@ -3,6 +_,7 @@
+ import com.infernalsuite.asp.api.world.SlimeChunk;
+ import com.infernalsuite.asp.api.world.SlimeChunkSection;
+ import com.infernalsuite.asp.api.world.SlimeWorld;
++import com.infernalsuite.asp.api.world.SlimeFlatWorldProfile;
+ import com.infernalsuite.asp.api.world.properties.SlimeProperties;
+ import com.infernalsuite.asp.api.world.properties.SlimePropertyMap;
+ import net.kyori.adventure.nbt.BinaryTagTypes;
+@@ -14,6 +_,10 @@
+ public class ChunkPruner {
+ 
+     public static boolean canBePruned(SlimeWorld world, SlimeChunk chunk) {
++        if (world.getExtraData().containsKey(SlimeFlatWorldProfile.EXTRA_DATA_KEY)) {
++            // The live owner already retained this snapshot. Do not erase excavated chunks or metadata here.
++            return false;
++        }
+         SlimePropertyMap propertyMap = world.getPropertyMap();
+         if (propertyMap.getValue(SlimeProperties.SHOULD_LIMIT_SAVE)) {
+             int minX = propertyMap.getValue(SlimeProperties.SAVE_MIN_X);

@@ -1,0 +1,150 @@
+--- /dev/null
++++ b/src/main/java/com/infernalsuite/asp/api/world/SlimeFlatWorldProfile.java
+@@ -1,0 +_,147 @@
++package com.infernalsuite.asp.api.world;
++
++import net.kyori.adventure.nbt.BinaryTag;
++import net.kyori.adventure.nbt.BinaryTagTypes;
++import net.kyori.adventure.nbt.CompoundBinaryTag;
++import net.kyori.adventure.nbt.IntBinaryTag;
++import net.kyori.adventure.nbt.ListBinaryTag;
++import net.kyori.adventure.nbt.StringBinaryTag;
++import org.jetbrains.annotations.Nullable;
++
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Objects;
++
++/**
++ * A persisted baseline for on-demand flat chunks. Horizontal bounds are in blocks and exclude their maximum.
++ * Install a profile before loading a new world. Do not change it after chunks have been generated: chunks that
++ * still match the baseline may be omitted from storage and generated again on their next load.
++ *
++ * @param version profile format version; currently {@code 1}
++ * @param minY dimension minimum block Y
++ * @param maxY dimension maximum block Y, exclusive
++ * @param startY bottom of the first layer
++ * @param minX minimum block X, inclusive
++ * @param minZ minimum block Z, inclusive
++ * @param maxX maximum block X, exclusive
++ * @param maxZ maximum block Z, exclusive
++ * @param biome namespaced biome identifier
++ * @param layers layers ordered from bottom to top
++ */
++public record SlimeFlatWorldProfile(int version, int minY, int maxY, int startY,
++                                   int minX, int minZ, int maxX, int maxZ,
++                                   String biome, List<Layer> layers) {
++    public static final String EXTRA_DATA_KEY = "scissors:flat_world_profile";
++
++    public SlimeFlatWorldProfile {
++        Objects.requireNonNull(biome, "biome");
++        layers = List.copyOf(layers);
++        if (version != 1 || minY < -2032 || maxY > 2032 || minY >= maxY || minY % 16 != 0 || maxY % 16 != 0) {
++            throw new IllegalArgumentException("Unsupported flat profile version or dimension height");
++        }
++        if (startY < minY || startY >= maxY || minX >= maxX || minZ >= maxZ
++                || minX < -30_000_000 || minZ < -30_000_000 || maxX > 30_000_000 || maxZ > 30_000_000) {
++            throw new IllegalArgumentException("Invalid flat profile bounds");
++        }
++        if (!biome.matches("[a-z0-9_.-]+:[a-z0-9/._-]+") || layers.isEmpty() || layers.size() > maxY - minY) {
++            throw new IllegalArgumentException("Invalid flat profile biome or layers");
++        }
++        long height = 0;
++        for (Layer layer : layers) {
++            height += layer.height();
++        }
++        if (height > maxY - startY) {
++            throw new IllegalArgumentException("Flat profile layers exceed the dimension height");
++        }
++    }
++
++    /** Install this profile on an unloaded world that has no profile yet. */
++    public void install(SlimeWorld world) {
++        if (world instanceof SlimeWorldInstance) {
++            throw new IllegalArgumentException("Install the flat profile before loading the world");
++        }
++        if (world.getExtraData().putIfAbsent(EXTRA_DATA_KEY, toCompound()) != null) {
++            throw new IllegalStateException("The world already has a flat profile");
++        }
++    }
++
++    /** Read the persisted profile, or return null for a world without one. */
++    public static @Nullable SlimeFlatWorldProfile fromWorld(SlimeWorld world) {
++        BinaryTag tag = world.getExtraData().get(EXTRA_DATA_KEY);
++        if (tag == null) {
++            return null;
++        }
++        if (!(tag instanceof CompoundBinaryTag compound)) {
++            throw new IllegalArgumentException("Flat profile must be a compound tag");
++        }
++        return fromCompound(compound);
++    }
++
++    public CompoundBinaryTag toCompound() {
++        ListBinaryTag.Builder<CompoundBinaryTag> encodedLayers = ListBinaryTag.builder(BinaryTagTypes.COMPOUND);
++        for (Layer layer : layers) {
++            encodedLayers.add(CompoundBinaryTag.builder().putInt("height", layer.height()).put("state", layer.blockState()).build());
++        }
++        return CompoundBinaryTag.builder().putInt("version", version).putInt("minY", minY).putInt("maxY", maxY)
++                .putInt("startY", startY).putInt("minX", minX).putInt("minZ", minZ).putInt("maxX", maxX).putInt("maxZ", maxZ)
++                .putString("biome", biome).put("layers", encodedLayers.build()).build();
++    }
++
++    public static SlimeFlatWorldProfile fromCompound(CompoundBinaryTag tag) {
++        if (tag.size() != 10 || !(tag.get("layers") instanceof ListBinaryTag list) || list.elementType() != BinaryTagTypes.COMPOUND
++                || list.size() > 4064) {
++            throw new IllegalArgumentException("Invalid flat profile layers");
++        }
++        List<Layer> layers = new ArrayList<>(list.size());
++        for (BinaryTag element : list) {
++            CompoundBinaryTag layer = (CompoundBinaryTag) element;
++            if (layer.size() != 2 || !(layer.get("state") instanceof CompoundBinaryTag state)) {
++                throw new IllegalArgumentException("Invalid flat profile layer state");
++            }
++            layers.add(new Layer(state, integer(layer, "height")));
++        }
++        if (!(tag.get("biome") instanceof StringBinaryTag biome)) {
++            throw new IllegalArgumentException("Invalid flat profile biome");
++        }
++        return new SlimeFlatWorldProfile(integer(tag, "version"), integer(tag, "minY"), integer(tag, "maxY"), integer(tag, "startY"),
++                integer(tag, "minX"), integer(tag, "minZ"), integer(tag, "maxX"), integer(tag, "maxZ"), biome.value(), layers);
++    }
++
++    private static int integer(CompoundBinaryTag tag, String key) {
++        if (!(tag.get(key) instanceof IntBinaryTag value)) {
++            throw new IllegalArgumentException("Invalid flat profile integer: " + key);
++        }
++        return value.value();
++    }
++
++    /** A Minecraft block-state tag and the number of consecutive layers that use it. */
++    public record Layer(CompoundBinaryTag blockState, int height) {
++        public Layer {
++            Objects.requireNonNull(blockState, "blockState");
++            if (height < 1 || height > 4064 || !(blockState.get("Name") instanceof StringBinaryTag name)
++                    || !name.value().matches("[a-z0-9_.-]+:[a-z0-9/._-]+")) {
++                throw new IllegalArgumentException("Invalid flat layer height or block identifier");
++            }
++            for (String key : blockState.keySet()) {
++                if (!key.equals("Name") && !key.equals("Properties")) {
++                    throw new IllegalArgumentException("Unknown flat layer state field: " + key);
++                }
++            }
++            BinaryTag properties = blockState.get("Properties");
++            if (properties != null) {
++                if (!(properties instanceof CompoundBinaryTag compound)) {
++                    throw new IllegalArgumentException("Flat layer properties must be a compound tag");
++                }
++                for (var entry : compound) {
++                    if (!(entry.getValue() instanceof StringBinaryTag)) {
++                        throw new IllegalArgumentException("Flat layer properties must be strings");
++                    }
++                }
++            }
++        }
++
++        public Layer(String block, int height) {
++            this(CompoundBinaryTag.builder().putString("Name", block).build(), height);
++        }
++    }
++}

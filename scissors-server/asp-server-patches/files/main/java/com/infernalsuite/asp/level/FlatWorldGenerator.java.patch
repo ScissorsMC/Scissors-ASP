@@ -1,0 +1,190 @@
+--- /dev/null
++++ b/main/java/com/infernalsuite/asp/level/FlatWorldGenerator.java
+@@ -1,0 +_,187 @@
++package com.infernalsuite.asp.level;
++
++import com.infernalsuite.asp.Converter;
++import com.infernalsuite.asp.api.world.SlimeFlatWorldProfile;
++import com.infernalsuite.asp.api.world.SlimeWorld;
++import net.kyori.adventure.nbt.CompoundBinaryTag;
++import net.minecraft.core.Holder;
++import net.minecraft.core.registries.BuiltInRegistries;
++import net.minecraft.core.registries.Registries;
++import net.minecraft.nbt.NbtUtils;
++import net.minecraft.resources.Identifier;
++import net.minecraft.resources.ResourceKey;
++import net.minecraft.server.MinecraftServer;
++import net.minecraft.world.level.biome.Biome;
++import net.minecraft.world.level.block.Block;
++import net.minecraft.world.level.block.Blocks;
++import net.minecraft.world.level.block.state.BlockState;
++import net.minecraft.world.level.block.state.properties.Property;
++import net.minecraft.world.level.chunk.LevelChunk;
++import net.minecraft.world.level.chunk.LevelChunkSection;
++import net.minecraft.world.level.chunk.status.ChunkStatus;
++import net.minecraft.world.level.levelgen.Heightmap;
++import org.jetbrains.annotations.Nullable;
++
++import java.util.ArrayList;
++import java.util.Arrays;
++import java.util.List;
++
++/** Owns the immutable, registry-resolved baseline for one loaded flat world. */
++public final class FlatWorldGenerator {
++    private final SlimeFlatWorldProfile profile;
++    private final BlockState[] states;
++    private final Holder<Biome> biome;
++    private final CompoundBinaryTag encodedProfile;
++
++    private FlatWorldGenerator(SlimeFlatWorldProfile profile, BlockState[] states, Holder<Biome> biome) {
++        this.profile = profile;
++        this.states = states;
++        this.biome = biome;
++        this.encodedProfile = profile.toCompound();
++    }
++
++    public static @Nullable FlatWorldGenerator fromWorld(SlimeWorld world) {
++        SlimeFlatWorldProfile requested = SlimeFlatWorldProfile.fromWorld(world);
++        if (requested == null) {
++            return null;
++        }
++        BlockState[] states = new BlockState[requested.maxY() - requested.minY()];
++        Arrays.fill(states, Blocks.AIR.defaultBlockState());
++        List<SlimeFlatWorldProfile.Layer> layers = new ArrayList<>(requested.layers().size());
++        int offset = requested.startY() - requested.minY();
++        for (SlimeFlatWorldProfile.Layer layer : requested.layers()) {
++            BlockState state = parseState(layer.blockState());
++            Arrays.fill(states, offset, offset + layer.height(), state);
++            offset += layer.height();
++            CompoundBinaryTag canonicalState = Converter.convertTag(NbtUtils.writeBlockState(state));
++            layers.add(new SlimeFlatWorldProfile.Layer(canonicalState, layer.height()));
++        }
++        SlimeFlatWorldProfile profile = new SlimeFlatWorldProfile(requested.version(), requested.minY(), requested.maxY(), requested.startY(),
++                requested.minX(), requested.minZ(), requested.maxX(), requested.maxZ(), requested.biome(), layers);
++        Holder<Biome> biome = MinecraftServer.getServer().registryAccess().lookupOrThrow(Registries.BIOME)
++                .get(ResourceKey.create(Registries.BIOME, Identifier.parse(profile.biome())))
++                .orElseThrow(() -> new IllegalArgumentException("Unknown flat profile biome: " + profile.biome()));
++        // Persist resolved state defaults so regeneration does not depend on future default changes.
++        world.getExtraData().put(SlimeFlatWorldProfile.EXTRA_DATA_KEY, profile.toCompound());
++        return new FlatWorldGenerator(profile, states, biome);
++    }
++
++    private static BlockState parseState(CompoundBinaryTag tag) {
++        Block block = BuiltInRegistries.BLOCK.getOptional(Identifier.parse(tag.getString("Name")))
++                .orElseThrow(() -> new IllegalArgumentException("Unknown flat profile block: " + tag.getString("Name")));
++        BlockState state = block.defaultBlockState();
++        for (var entry : tag.getCompound("Properties")) {
++            Property<?> property = block.getStateDefinition().getProperty(entry.getKey());
++            if (property == null) {
++                throw new IllegalArgumentException("Unknown flat profile block property: " + entry.getKey());
++            }
++            state = withProperty(state, property, tag.getCompound("Properties").getString(entry.getKey()));
++        }
++        if (state.hasBlockEntity()) {
++            throw new IllegalArgumentException("Flat profile layers cannot contain block entities");
++        }
++        return state;
++    }
++
++    private static <T extends Comparable<T>> BlockState withProperty(BlockState state, Property<T> property, String value) {
++        return state.setValue(property, property.getValue(value)
++                .orElseThrow(() -> new IllegalArgumentException("Invalid flat profile block property: " + property.getName() + "=" + value)));
++    }
++
++    public SlimeFlatWorldProfile profile() {
++        return profile;
++    }
++
++    public Holder<Biome> biome() {
++        return biome;
++    }
++
++    public void validateDimension(SlimeLevelInstance world) {
++        if (world.getMinY() != profile.minY() || world.getMaxY() + 1 != profile.maxY()) {
++            throw new IllegalArgumentException("Flat profile height does not match the world dimension");
++        }
++    }
++
++    public void verifyProfile(SlimeWorld world) {
++        if (!encodedProfile.equals(world.getExtraData().get(SlimeFlatWorldProfile.EXTRA_DATA_KEY))) {
++            throw new IllegalStateException("Do not change the flat profile of a loaded world");
++        }
++    }
++
++    public void generate(LevelChunk chunk) {
++        int blockX = chunk.getPos().getMinBlockX();
++        int blockZ = chunk.getPos().getMinBlockZ();
++        int minX = Math.max(0, profile.minX() - blockX);
++        int maxX = Math.min(16, profile.maxX() - blockX);
++        int minZ = Math.max(0, profile.minZ() - blockZ);
++        int maxZ = Math.min(16, profile.maxZ() - blockZ);
++        for (int offset = 0; offset < states.length; offset++) {
++            BlockState state = states[offset];
++            if (state == Blocks.AIR.defaultBlockState()) {
++                continue;
++            }
++            LevelChunkSection section = chunk.getSections()[offset >> 4];
++            for (int x = minX; x < maxX; x++) {
++                for (int z = minZ; z < maxZ; z++) {
++                    section.setBlockState(x, offset & 15, z, state, false);
++                }
++            }
++        }
++        Heightmap.primeHeightmaps(chunk, ChunkStatus.FULL.heightmapsAfter());
++        // The loading pyramid runs INITIALIZE_LIGHT and LIGHT even for a FULL chunk. Do not claim precomputed lighting.
++        chunk.setLightCorrect(false);
++    }
++
++    public boolean matchesBaseline(LevelChunk chunk) {
++        int blockX = chunk.getPos().getMinBlockX();
++        int blockZ = chunk.getPos().getMinBlockZ();
++        LevelChunkSection[] sections = chunk.getSections();
++        boolean fullyInside = inside(blockX, blockZ) && inside(blockX + 15, blockZ + 15);
++        boolean fullyOutside = blockX + 16 <= profile.minX() || blockX >= profile.maxX()
++                || blockZ + 16 <= profile.minZ() || blockZ >= profile.maxZ();
++        for (int index = 0; index < sections.length; index++) {
++            LevelChunkSection section = sections[index];
++            for (int y = 0; y < 4; y++) {
++                for (int z = 0; z < 4; z++) {
++                    for (int x = 0; x < 4; x++) {
++                        if (!section.getBiomes().get(x, y, z).equals(biome)) {
++                            return false;
++                        }
++                    }
++                }
++            }
++            BlockState uniform = fullyOutside ? Blocks.AIR.defaultBlockState() : uniformState(index);
++            if (uniform != null && (fullyInside || fullyOutside)
++                    && !section.getStates().maybeHas(state -> state != uniform)) {
++                continue;
++            }
++            for (int y = 0; y < 16; y++) {
++                BlockState state = states[index * 16 + y];
++                for (int z = 0; z < 16; z++) {
++                    for (int x = 0; x < 16; x++) {
++                        BlockState expected = inside(blockX + x, blockZ + z) ? state : Blocks.AIR.defaultBlockState();
++                        if (section.getBlockState(x, y, z) != expected) {
++                            return false;
++                        }
++                    }
++                }
++            }
++        }
++        return true;
++    }
++
++    private @Nullable BlockState uniformState(int section) {
++        int offset = section * 16;
++        BlockState state = states[offset];
++        for (int y = 1; y < 16; y++) {
++            if (states[offset + y] != state) {
++                return null;
++            }
++        }
++        return state;
++    }
++
++    private boolean inside(int x, int z) {
++        return x >= profile.minX() && x < profile.maxX() && z >= profile.minZ() && z < profile.maxZ();
++    }
++}

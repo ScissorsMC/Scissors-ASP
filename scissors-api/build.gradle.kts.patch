@@ -8,3 +8,39 @@
  plugins {
      `java-library`
      `maven-publish`
+@@ -57,7 +_,10 @@
+ }
+ 
+ dependencies {
+-    api(project(":api")) //ASP
++    api(project(":api")) {
++        // This module already contains the Paper API classes.
++        exclude(group = "io.papermc.paper", module = "paper-api")
++    }
+     // api dependencies are listed transitively to API consumers
+     api("com.google.guava:guava:33.6.0-jre")
+     api("com.google.code.gson:gson:2.14.0")
+@@ -150,6 +_,7 @@
+             }
+             outgoing {
+                 capability(mainCapability)
++                capability("${project.group}:scissors-asp-api:${project.version}")
+                 // Paper-MojangAPI has been merged into Paper-API
+                 capability("io.papermc.paper:paper-mojangapi:${project.version}")
+                 capability("com.destroystokyo.paper:paper-mojangapi:${project.version}")
+@@ -164,9 +_,15 @@
+ 
+ configure<PublishingExtension> {
+     publications.create<MavenPublication>("maven") {
++        artifactId = "scissors-asp-api"
+         // For Brigadier API
+         outgoingVariants.forEach {
+             suppressPomMetadataWarningsFor(it)
++        }
++        pom {
++            name = "Scissors ASP API"
++            description = "The Paper and AdvancedSlimePaper APIs with Scissors extensions"
++            url = "https://github.com/ScissorsMC/Scissors-ASP"
+         }
+         from(components["java"])
+     }

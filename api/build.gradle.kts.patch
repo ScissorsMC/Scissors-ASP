@@ -1,15 +1,21 @@
 --- a/api/build.gradle.kts
 +++ b/api/build.gradle.kts
-@@ -1,16 +_,21 @@
+@@ -1,16 +_,44 @@
 +// Scissors-ASP - replace ASP's buildSrc convention plugins with a standalone build script. Dependency versions mirror
 +// ASP's gradle/libs.versions.toml. The Paper API artifact must match the Paper commit pinned by the selected aspRef.
  plugins {
 -    id("asp.base-conventions")
 -    id("asp.publishing-conventions")
 +    `java-library`
++    `maven-publish`
 +}
 +
 +group = "com.infernalsuite.asp"
++
++java {
++    withSourcesJar()
++    withJavadocJar()
++}
 +
 +sourceSets {
 +    main {
@@ -31,5 +37,22 @@
 +    api("org.jspecify:jspecify:1.0.0")
 +    api("net.kyori:adventure-nbt:5.1.1")
 +
-+    compileOnly("io.papermc.paper:paper-api:${providers.gradleProperty("paperApiVersion").get()}")
++    compileOnlyApi("io.papermc.paper:paper-api:${providers.gradleProperty("paperApiVersion").get()}")
++}
++
++publishing {
++    publications.create<MavenPublication>("maven") {
++        groupId = "io.github.scissorsmc"
++        artifactId = "scissors-slime-api"
++        from(components["java"])
++        pom {
++            name = "Scissors Slime API"
++            description = "Scissors extensions to the AdvancedSlimePaper world API"
++            url = "https://github.com/ScissorsMC/Scissors-ASP"
++        }
++    }
++}
++
++tasks.withType<Javadoc>().configureEach {
++    (options as StandardJavadocDocletOptions).tags("apiNote:a:API Note:", "implSpec:a:Implementation Requirements:")
  }

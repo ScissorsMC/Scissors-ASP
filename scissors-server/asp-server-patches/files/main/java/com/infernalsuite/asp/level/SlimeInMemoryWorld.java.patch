@@ -1,0 +1,88 @@
+--- a/main/java/com/infernalsuite/asp/level/SlimeInMemoryWorld.java
++++ b/main/java/com/infernalsuite/asp/level/SlimeInMemoryWorld.java
+@@ -15,6 +_,7 @@
+ import com.infernalsuite.asp.skeleton.SkeletonSlimeWorld;
+ import com.infernalsuite.asp.skeleton.SlimeChunkSkeleton;
+ import com.infernalsuite.asp.api.world.SlimeChunk;
++import com.infernalsuite.asp.api.world.SlimeFlatWorldProfile;
+ import com.infernalsuite.asp.api.world.SlimeWorld;
+ import com.infernalsuite.asp.api.world.SlimeWorldInstance;
+ import com.infernalsuite.asp.api.world.properties.SlimePropertyMap;
+@@ -54,6 +_,7 @@
+     private final AdventurePersistentDataContainer extraPDC;
+     private final SlimePropertyMap propertyMap;
+     private final SlimeLoader loader;
++    private final FlatWorldGenerator flatWorldGenerator;
+ 
+     private final Long2ObjectMap<SlimeChunk> chunkStorage = new Long2ObjectOpenHashMap<>();
+     private boolean readOnly;
+@@ -63,6 +_,10 @@
+         this.extra = bootstrap.initial().getExtraData();
+         this.propertyMap = bootstrap.initial().getPropertyMap();
+         this.loader = bootstrap.initial().getLoader();
++        this.flatWorldGenerator = bootstrap.flatWorldGenerator();
++        if (this.flatWorldGenerator != null) {
++            this.flatWorldGenerator.validateDimension(instance);
++        }
+         this.readOnly = bootstrap.initial().isReadOnly();
+ 
+         for (SlimeChunk initial : bootstrap.initial().getChunkStorage()) {
+@@ -85,6 +_,7 @@
+     }
+ 
+     public LevelChunk createChunk(int x, int z, SlimeChunk chunk) {
++        verifyFlatWorldProfile();
+         SlimeChunkLevel levelChunk;
+         if (chunk == null) {
+             net.minecraft.world.level.ChunkPos pos = new net.minecraft.world.level.ChunkPos(x, z);
+@@ -98,6 +_,10 @@
+             levelChunk.fillBiomesFromNoise(instance.getChunkSource().getGenerator().getBiomeSource(),
+                     instance.getChunkSource().randomState().sampler());
+ 
++            if (this.flatWorldGenerator != null) {
++                this.flatWorldGenerator.generate(levelChunk);
++            }
++
+         } else {
+             levelChunk = SlimeChunkConverter.deserializeSlimeChunk(this.instance, chunk);
+         }
+@@ -110,10 +_,11 @@
+     // Authored by: Kenox <muranelp@gmail.com>
+     // Don't use the NMS live chunk in the chunk map
+     public void unload(LevelChunk providedChunk, ChunkEntitySlices slices, PoiChunk poiChunk) {
++        verifyFlatWorldProfile();
+         final int x = providedChunk.locX;
+         final int z = providedChunk.locZ;
+ 
+-        if (FastChunkPruner.canBePruned(this, providedChunk, slices)) {
++        if (FastChunkPruner.canBePruned(this, providedChunk, slices, poiChunk)) {
+             this.chunkStorage.remove(Util.chunkPosition(x, z));
+             return;
+         }
+@@ -176,6 +_,7 @@
+ 
+     @Override
+     public SlimeWorld getSerializableCopy() {
++        verifyFlatWorldProfile();
+         SlimeWorld world = SkeletonCloning.weakCopy(this);
+ 
+         Long2ObjectMap<SlimeChunk> cloned = new Long2ObjectOpenHashMap<>();
+@@ -289,6 +_,18 @@
+ 
+     public SlimeLevelInstance getInstance() {
+         return instance;
++    }
++
++    public FlatWorldGenerator flatWorldGenerator() {
++        return this.flatWorldGenerator;
++    }
++
++    private void verifyFlatWorldProfile() {
++        if (this.flatWorldGenerator != null) {
++            this.flatWorldGenerator.verifyProfile(this);
++        } else if (this.extra.containsKey(SlimeFlatWorldProfile.EXTRA_DATA_KEY)) {
++            throw new IllegalStateException("Do not add a flat profile to a loaded world");
++        }
+     }
+ 
+     @Override

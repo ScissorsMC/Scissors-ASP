@@ -118,11 +118,15 @@ subprojects {
         maven(paperMavenPublicUrl)
     }
 
-    extensions.configure<PublishingExtension> {
-        repositories {
-            maven("https://artifactory.papermc.io/artifactory/releases/") {
-                name = "paperReleases"
-                credentials(PasswordCredentials::class)
+    if (name == "api" || name == "scissors-api") {
+        providers.gradleProperty("nexusRepositoryUrl").orNull?.let { repositoryUrl ->
+            extensions.configure<PublishingExtension> {
+                repositories {
+                    maven(repositoryUrl) {
+                        name = "plex"
+                        credentials(PasswordCredentials::class)
+                    }
+                }
             }
         }
     }
