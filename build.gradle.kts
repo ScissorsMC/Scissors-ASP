@@ -119,13 +119,13 @@ subprojects {
     }
 
     if (name == "api" || name == "scissors-api") {
-        providers.gradleProperty("nexusRepositoryUrl").orNull?.let { repositoryUrl ->
-            extensions.configure<PublishingExtension> {
-                repositories {
-                    maven(repositoryUrl) {
-                        name = "plex"
-                        credentials(PasswordCredentials::class)
-                    }
+        // Maven API versions are canonical Minecraft versions, not separate API releases or server build numbers.
+        version = providers.gradleProperty("mcVersion").get().trim()
+        extensions.configure<PublishingExtension> {
+            repositories {
+                maven("https://nexus.telesphoreo.me/repository/scissors-snapshots/") {
+                    name = "plex"
+                    credentials(PasswordCredentials::class)
                 }
             }
         }
