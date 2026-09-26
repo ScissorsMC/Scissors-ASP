@@ -8,6 +8,14 @@
  import com.infernalsuite.asp.api.world.SlimeWorld;
  import com.infernalsuite.asp.api.world.SlimeWorldInstance;
  import com.infernalsuite.asp.api.world.properties.SlimePropertyMap;
+@@ -27,6 +_,7 @@
+ import net.minecraft.SharedConstants;
+ import net.minecraft.world.level.block.Block;
+ import net.minecraft.world.level.chunk.ChunkAccess;
++import net.minecraft.world.level.chunk.ImposterProtoChunk;
+ import net.minecraft.world.level.chunk.LevelChunk;
+ import net.minecraft.world.level.chunk.UpgradeData;
+ import net.minecraft.world.level.material.Fluid;
 @@ -54,6 +_,8 @@
      private final AdventurePersistentDataContainer extraPDC;
      private final SlimePropertyMap propertyMap;
@@ -78,7 +86,7 @@
          SlimeWorld world = SkeletonCloning.weakCopy(this);
  
          Long2ObjectMap<SlimeChunk> cloned = new Long2ObjectOpenHashMap<>();
-@@ -289,6 +_,65 @@
+@@ -289,6 +_,67 @@
  
      public SlimeLevelInstance getInstance() {
          return instance;
@@ -107,7 +115,9 @@
 +    public void saveVanilla(int x, int z, ChunkAccess chunk, ChunkEntitySlices entities, PoiChunk poi, boolean unloading) {
 +        verifyVanillaProfile();
 +        if (chunk != null) {
-+            putVanillaData("chunk", x, z, net.minecraft.world.level.chunk.storage.SerializableChunkData.copyOf(this.instance, chunk).write());
++            // A full chunk below FULL status is a read-only ImposterProtoChunk view; serialize the LevelChunk it wraps.
++            ChunkAccess data = chunk instanceof ImposterProtoChunk imposter ? imposter.getWrapped() : chunk;
++            putVanillaData("chunk", x, z, net.minecraft.world.level.chunk.storage.SerializableChunkData.copyOf(this.instance, data).write());
 +        }
 +        if (entities != null && (!entities.isTransient() || unloading)) {
 +            var saved = entities.save();
