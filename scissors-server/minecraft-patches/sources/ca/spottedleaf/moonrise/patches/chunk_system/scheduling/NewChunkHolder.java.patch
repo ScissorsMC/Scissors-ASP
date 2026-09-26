@@ -1,0 +1,39 @@
+--- a/ca/spottedleaf/moonrise/patches/chunk_system/scheduling/NewChunkHolder.java
++++ b/ca/spottedleaf/moonrise/patches/chunk_system/scheduling/NewChunkHolder.java
+@@ -872,7 +_,12 @@
+         final ChunkEntitySlices entityChunk = state.entityChunk();
+         final PoiChunk poiChunk = state.poiChunk();
+ 
+-        final boolean shouldLevelChunkNotSave = PlatformHooks.get().forceNoSave(chunk);
++        // Scissors - preserve full vanilla chunk NBT, including unfinished generation and structures, in slime storage.
++        final boolean vanillaSlime = this.world.slimeInstance != null && this.world.slimeInstance.isVanilla();
++        if (vanillaSlime) {
++            this.world.slimeInstance.saveVanilla(this.chunkX, this.chunkZ, chunk, entityChunk, poiChunk, true);
++        }
++        final boolean shouldLevelChunkNotSave = vanillaSlime || PlatformHooks.get().forceNoSave(chunk);
+ 
+         // unload chunk data
+         if (chunk != null) {
+@@ -889,7 +_,7 @@
+             if (chunk instanceof LevelChunk levelChunk) {
+                 //ASP start - unloadStage1 sets the entitySlices to null, so we can't get them otherwise unfortunately.
+                 //This needs to be above world.unload since world.unload removes block entities
+-                if(world instanceof com.infernalsuite.asp.level.SlimeLevelInstance instance) {
++                if(world instanceof com.infernalsuite.asp.level.SlimeLevelInstance instance && !vanillaSlime) {
+                     instance.unload(levelChunk, entityChunk, poiChunk);
+                 }
+                 //ASP end
+@@ -1683,6 +_,13 @@
+                     executedUnloadTasks[regionFileType.ordinal()] = executed;
+                 }
+             }
++        }
++
++        // Scissors - generation workers own protochunks until shutdown or unload.
++        if (this.world.slimeInstance != null && this.world.slimeInstance.isVanilla()) {
++            this.world.slimeInstance.saveVanilla(this.chunkX, this.chunkZ,
++                    shutdown || chunk instanceof LevelChunk ? chunk : null, entities, poi, shutdown);
++            return new SaveStat(chunk != null, entities != null, poi != null);
+         }
+ 
+         final boolean forceNoSaveChunk = PlatformHooks.get().forceNoSave(chunk);

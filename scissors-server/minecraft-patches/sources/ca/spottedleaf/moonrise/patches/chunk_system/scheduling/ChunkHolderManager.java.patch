@@ -1,0 +1,44 @@
+--- a/ca/spottedleaf/moonrise/patches/chunk_system/scheduling/ChunkHolderManager.java
++++ b/ca/spottedleaf/moonrise/patches/chunk_system/scheduling/ChunkHolderManager.java
+@@ -192,12 +_,15 @@
+     }
+ 
+     public void close(boolean save, boolean halt) { // ASP
+-        if (this.world instanceof com.infernalsuite.asp.level.SlimeLevelInstance) save = false; // ASP
++        if (this.world instanceof com.infernalsuite.asp.level.SlimeLevelInstance && !this.world.slimeInstance.isVanilla()) save = false; // ASP
+ 
+         TickThread.ensureTickThread("Closing world off-main");
+         if (halt) {
+             LOGGER.info("Waiting 60s for chunk system to halt for world '" + WorldUtil.getWorldName(this.world) + "'");
+             if (!this.taskScheduler.halt(true, TimeUnit.SECONDS.toNanos(60L))) {
++                if (this.world.slimeInstance != null && this.world.slimeInstance.isVanilla()) {
++                    throw new IllegalStateException("Cannot snapshot vanilla protochunks while generation is running");
++                }
+                 LOGGER.warn("Failed to halt generation/loading tasks for world '" + WorldUtil.getWorldName(this.world) + "'");
+             } else {
+                 LOGGER.info("Halted chunk system for world '" + WorldUtil.getWorldName(this.world) + "'");
+@@ -206,6 +_,14 @@
+ 
+         if (save) {
+             this.saveAllChunks(true, true, true, false);
++            // Scissors - persist protochunks only after generation has stopped, before closing the world.
++            if (this.world instanceof com.infernalsuite.asp.level.SlimeLevelInstance slime && slime.slimeInstance.isVanilla()) {
++                try {
++                    slime.save().get();
++                } catch (Exception failure) {
++                    throw new IllegalStateException("Could not save the closed vanilla slime world", failure);
++                }
++            }
+         }
+ 
+         MoonriseRegionFileIO.flush(this.world);
+@@ -323,6 +_,9 @@
+                     }
+                 }
+             } catch (final Throwable thr) {
++                if (this.world.slimeInstance != null && this.world.slimeInstance.isVanilla()) {
++                    throw new IllegalStateException("Could not snapshot a vanilla slime chunk", thr);
++                }
+                 LOGGER.error("Failed to save chunk (" + holder.chunkX + "," + holder.chunkZ + ") in world '" + WorldUtil.getWorldName(this.world) + "'", thr);
+             }
+             if (flush && (saved - lastFlush) > (flushInterval / 2)) {

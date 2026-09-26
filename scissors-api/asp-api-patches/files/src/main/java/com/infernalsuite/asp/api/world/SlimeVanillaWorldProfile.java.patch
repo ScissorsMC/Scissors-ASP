@@ -1,0 +1,59 @@
+--- /dev/null
++++ b/src/main/java/com/infernalsuite/asp/api/world/SlimeVanillaWorldProfile.java
+@@ -1,0 +_,56 @@
++package com.infernalsuite.asp.api.world;
++
++import com.infernalsuite.asp.api.world.properties.SlimeProperties;
++import net.kyori.adventure.nbt.CompoundBinaryTag;
++import net.kyori.adventure.nbt.IntBinaryTag;
++import net.kyori.adventure.nbt.LongBinaryTag;
++import net.kyori.adventure.nbt.StringBinaryTag;
++import org.jetbrains.annotations.Nullable;
++
++/** Persisted vanilla generation settings. Install only on a new, unloaded world. */
++public record SlimeVanillaWorldProfile(int version, long seed, String environment) {
++    public static final String EXTRA_DATA_KEY = "scissors:vanilla_world_profile";
++
++    public SlimeVanillaWorldProfile {
++        if (version != 1 || !("normal".equals(environment) || "nether".equals(environment) || "the_end".equals(environment))) {
++            throw new IllegalArgumentException("Unsupported vanilla world profile");
++        }
++    }
++
++    public void install(SlimeWorld world) {
++        if (world instanceof SlimeWorldInstance || !world.getChunkStorage().isEmpty()
++                || world.getExtraData().containsKey(SlimeFlatWorldProfile.EXTRA_DATA_KEY)) {
++            throw new IllegalArgumentException("Install vanilla generation only on a new, unloaded world");
++        }
++        if (world.getExtraData().putIfAbsent(EXTRA_DATA_KEY, toCompound()) != null) {
++            throw new IllegalStateException("The world already has a vanilla profile");
++        }
++        world.getPropertyMap().setValue(SlimeProperties.ENVIRONMENT, environment);
++        world.getPropertyMap().setValue(SlimeProperties.WORLD_TYPE, "default");
++    }
++
++    public CompoundBinaryTag toCompound() {
++        return CompoundBinaryTag.builder().putInt("version", version).putLong("seed", seed)
++                .putString("environment", environment).build();
++    }
++
++    public static @Nullable SlimeVanillaWorldProfile fromWorld(SlimeWorld world) {
++        var tag = world.getExtraData().get(EXTRA_DATA_KEY);
++        if (tag == null) {
++            return null;
++        }
++        if (!(tag instanceof CompoundBinaryTag value) || value.size() != 3
++                || !(value.get("version") instanceof IntBinaryTag)
++                || !(value.get("seed") instanceof LongBinaryTag)
++                || !(value.get("environment") instanceof StringBinaryTag)) {
++            throw new IllegalArgumentException("Invalid vanilla world profile");
++        }
++        var profile = new SlimeVanillaWorldProfile(value.getInt("version"), value.getLong("seed"), value.getString("environment"));
++        if (world.getExtraData().containsKey(SlimeFlatWorldProfile.EXTRA_DATA_KEY)
++                || !profile.environment().equals(world.getPropertyMap().getValue(SlimeProperties.ENVIRONMENT))
++                || !world.getPropertyMap().getValue(SlimeProperties.WORLD_TYPE).equals("default")) {
++            throw new IllegalArgumentException("Vanilla profile conflicts with world properties");
++        }
++        return profile;
++    }
++}

@@ -8,11 +8,29 @@
  import com.mojang.logging.LogUtils;
  import net.minecraft.server.level.ServerLevel;
  import net.minecraft.world.level.ChunkPos;
-@@ -67,6 +_,10 @@
+@@ -64,9 +_,28 @@
+ 
+     private ChunkAccess runOnMain(final SlimeChunk data) {
+         try {
++            if (this.world.slimeInstance.isVanilla()) {
++                var tag = this.world.slimeInstance.vanillaData("chunk", chunkX, chunkZ);
++                if (tag == null) {
++                    return new net.minecraft.world.level.chunk.ProtoChunk(new ChunkPos(chunkX, chunkZ), UpgradeData.EMPTY,
++                            this.world, this.world.palettedContainerFactory(), null);
++                }
++                int version = tag.getIntOr("DataVersion", -1);
++                tag = ca.spottedleaf.moonrise.common.PlatformHooks.get().convertNBT(net.minecraft.util.datafix.fixes.References.CHUNK,
++                        this.world.getServer().getFixerUpper(), tag, version, net.minecraft.SharedConstants.getCurrentVersion().dataVersion().version());
++                var saved = net.minecraft.world.level.chunk.storage.SerializableChunkData.parse(this.world, this.world.palettedContainerFactory(), tag);
++                if (saved == null) {
++                    throw new IllegalStateException("Invalid saved vanilla chunk");
++                }
++                return saved.read(this.world, this.world.getPoiManager(), this.world.getChunkSource().chunkMap.storageInfo(), new ChunkPos(chunkX, chunkZ));
++            }
              LevelChunk chunk = this.world.slimeInstance.createChunk(chunkX, chunkZ, data);
              return new ImposterProtoChunk(chunk, false);
          } catch (final Exception e) {
-+            if (this.world.slimeInstance.flatWorldGenerator() != null
++            if (this.world.slimeInstance.isVanilla() || this.world.slimeInstance.flatWorldGenerator() != null
 +                    || this.world.slimeInstance.getExtraData().containsKey(SlimeFlatWorldProfile.EXTRA_DATA_KEY)) {
 +                throw new IllegalStateException("Failed to load a generated flat-world chunk", e);
 +            }

@@ -1,0 +1,13 @@
+--- a/main/java/com/infernalsuite/asp/level/moonrise/SlimeEntityDataLoader.java
++++ b/main/java/com/infernalsuite/asp/level/moonrise/SlimeEntityDataLoader.java
+@@ -28,6 +_,10 @@
+ 
+     @Override
+     public ReadData readData(int chunkX, int chunkZ) {
++        if (instance.slimeInstance.isVanilla()) {
++            var tag = instance.slimeInstance.vanillaData("entities", chunkX, chunkZ);
++            return new ReadData(tag == null ? ReadData.ReadResult.NO_DATA : ReadData.ReadResult.SYNC_READ, null, tag, 0);
++        }
+         SlimeChunk chunk = instance.getSlimeInstance().getChunk(chunkX, chunkZ);
+ 
+         if(chunk == null || chunk.getEntities() == null) {

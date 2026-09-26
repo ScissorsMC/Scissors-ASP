@@ -8,19 +8,21 @@
  import com.infernalsuite.asp.api.world.SlimeWorld;
  import com.infernalsuite.asp.api.world.SlimeWorldInstance;
  import com.infernalsuite.asp.api.world.properties.SlimePropertyMap;
-@@ -54,6 +_,7 @@
+@@ -54,6 +_,8 @@
      private final AdventurePersistentDataContainer extraPDC;
      private final SlimePropertyMap propertyMap;
      private final SlimeLoader loader;
 +    private final FlatWorldGenerator flatWorldGenerator;
++    private final com.infernalsuite.asp.api.world.SlimeVanillaWorldProfile vanillaProfile;
  
      private final Long2ObjectMap<SlimeChunk> chunkStorage = new Long2ObjectOpenHashMap<>();
      private boolean readOnly;
-@@ -63,6 +_,10 @@
+@@ -63,6 +_,11 @@
          this.extra = bootstrap.initial().getExtraData();
          this.propertyMap = bootstrap.initial().getPropertyMap();
          this.loader = bootstrap.initial().getLoader();
 +        this.flatWorldGenerator = bootstrap.flatWorldGenerator();
++        this.vanillaProfile = bootstrap.vanillaProfile();
 +        if (this.flatWorldGenerator != null) {
 +            this.flatWorldGenerator.validateDimension(instance);
 +        }
@@ -59,18 +61,73 @@
              this.chunkStorage.remove(Util.chunkPosition(x, z));
              return;
          }
-@@ -176,6 +_,7 @@
+@@ -176,6 +_,16 @@
  
      @Override
      public SlimeWorld getSerializableCopy() {
 +        verifyFlatWorldProfile();
++        if (isVanilla()) {
++            for (var holder : this.instance.moonrise$getChunkTaskScheduler().chunkHolderManager.getChunkHolders()) {
++                var current = holder.getCurrentChunk();
++                // Generation workers can still own protochunks. Snapshot them only on unload or shutdown.
++                if (current instanceof LevelChunk) {
++                    saveVanilla(holder.chunkX, holder.chunkZ, current, holder.getEntityChunk(), holder.getPoiChunk(), false);
++                }
++            }
++        }
          SlimeWorld world = SkeletonCloning.weakCopy(this);
  
          Long2ObjectMap<SlimeChunk> cloned = new Long2ObjectOpenHashMap<>();
-@@ -289,6 +_,18 @@
+@@ -289,6 +_,65 @@
  
      public SlimeLevelInstance getInstance() {
          return instance;
++    }
++
++    public boolean isVanilla() {
++        return this.vanillaProfile != null;
++    }
++
++    public net.minecraft.nbt.CompoundTag vanillaData(String kind, int x, int z) {
++        verifyVanillaProfile();
++        var tag = this.extra.get("scissors:vanilla/" + kind + "/" + x + "/" + z);
++        return tag == null ? null : (net.minecraft.nbt.CompoundTag) Converter.convertTag(tag);
++    }
++
++    private void putVanillaData(String kind, int x, int z, net.minecraft.nbt.CompoundTag tag) {
++        String key = "scissors:vanilla/" + kind + "/" + x + "/" + z;
++        if (tag == null) {
++            this.extra.remove(key);
++        } else {
++            this.extra.put(key, Converter.convertTag(tag));
++        }
++    }
++
++    /** Snapshot on the owning tick thread, after generation stops for an unloading protochunk. */
++    public void saveVanilla(int x, int z, ChunkAccess chunk, ChunkEntitySlices entities, PoiChunk poi, boolean unloading) {
++        verifyVanillaProfile();
++        if (chunk != null) {
++            putVanillaData("chunk", x, z, net.minecraft.world.level.chunk.storage.SerializableChunkData.copyOf(this.instance, chunk).write());
++        }
++        if (entities != null && (!entities.isTransient() || unloading)) {
++            var saved = entities.save();
++            if (!entities.isTransient()) {
++                putVanillaData("entities", x, z, saved);
++            } else if (saved != null) {
++                ChunkEntitySlices.copyEntities(vanillaData("entities", x, z), saved);
++                putVanillaData("entities", x, z, saved);
++            }
++        }
++        if (poi != null) {
++            putVanillaData("poi", x, z, poi.save());
++        }
++    }
++
++    private void verifyVanillaProfile() {
++        if (!java.util.Objects.equals(this.vanillaProfile,
++                com.infernalsuite.asp.api.world.SlimeVanillaWorldProfile.fromWorld(this))) {
++            throw new IllegalStateException("Do not change a loaded world's vanilla generation profile");
++        }
 +    }
 +
 +    public FlatWorldGenerator flatWorldGenerator() {
@@ -78,6 +135,7 @@
 +    }
 +
 +    private void verifyFlatWorldProfile() {
++        verifyVanillaProfile();
 +        if (this.flatWorldGenerator != null) {
 +            this.flatWorldGenerator.verifyProfile(this);
 +        } else if (this.extra.containsKey(SlimeFlatWorldProfile.EXTRA_DATA_KEY)) {

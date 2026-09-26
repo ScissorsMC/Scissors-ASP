@@ -8,6 +8,24 @@
      private final boolean isFlat;
  
      public SlimeLevelInstance(SlimeBootstrap slimeBootstrap, PrimaryLevelData primaryLevelData,
+@@ -105,7 +_,7 @@
+                               ResourceKey<LevelStem> levelStemKey, LevelStem levelStem,
+                               org.bukkit.World.Environment environment) throws IOException {
+         WorldGenSettings settings = WorldGenSettings.of(
+-                new WorldOptions(WorldOptions.randomSeed(), false, false),
++                new WorldOptions(slimeBootstrap.vanillaProfile() == null ? WorldOptions.randomSeed() : slimeBootstrap.vanillaProfile().seed(), slimeBootstrap.vanillaProfile() != null, false),
+                 MinecraftServer.getServer().registryAccess()
+         );
+         ConcurrentMap<String, BinaryTag> initialExtraData = slimeBootstrap.initial().getExtraData();
+@@ -151,7 +_,7 @@
+                 levelStem,
+ 
+                 false,
+-                0L,
++                slimeBootstrap.vanillaProfile() == null ? 0L : slimeBootstrap.vanillaProfile().seed(),
+                 Collections.emptyList(),
+                 true,
+                 levelStemKey,
 @@ -162,7 +_,8 @@
                  new ReadOnlyDimensionDataStorage(CUSTOM_LEVEL_STORAGE_ACCESS.getDimensionPath(dimensionKey), MinecraftServer.getServer().getFixerUpper(), MinecraftServer.getServer().registryAccess()),
                  data
@@ -18,16 +36,42 @@
  
          this.slimeInstance = new SlimeInMemoryWorld(slimeBootstrap, this);
  
-@@ -191,6 +_,9 @@
+@@ -191,6 +_,18 @@
  
      @Override
      public @NotNull ChunkGenerator getGenerator(SlimeBootstrap slimeBootstrap) {
++        if (slimeBootstrap.vanillaProfile() != null) {
++            var dimension = switch (slimeBootstrap.vanillaProfile().environment()) {
++                case "nether" -> LevelStem.NETHER;
++                case "the_end" -> LevelStem.END;
++                default -> LevelStem.OVERWORLD;
++            };
++            return net.minecraft.world.level.levelgen.presets.WorldPresets.createNormalWorldDimensions(
++                    MinecraftServer.getServer().registryAccess()).get(dimension).orElseThrow().generator();
++        }
 +        if (slimeBootstrap.flatWorldGenerator() != null) {
 +            return new SlimeLevelGenerator(slimeBootstrap.flatWorldGenerator().biome(), this);
 +        }
          String biomeStr = slimeBootstrap.initial().getPropertyMap().getValue(SlimeProperties.DEFAULT_BIOME);
          ResourceKey<Biome> biomeKey = ResourceKey.create(Registries.BIOME, Identifier.parse(biomeStr));
          Holder<Biome> defaultBiome = MinecraftServer.getServer().registryAccess().lookupOrThrow(Registries.BIOME).get(biomeKey).orElseThrow();
+@@ -199,7 +_,15 @@
+ 
+     @Override
+     public void save(@Nullable ProgressListener progressUpdate, boolean forceSave, boolean savingDisabled, boolean close) {
+-        if (!savingDisabled) save();
++        if (this.slimeInstance.isVanilla() && close) {
++            try {
++                this.getChunkSource().close(!savingDisabled);
++            } catch (IOException failure) {
++                throw new IllegalStateException("Could not close the vanilla slime world", failure);
++            }
++        } else if (!savingDisabled) {
++            save();
++        }
+     }
+ 
+     public void unload(@NotNull LevelChunk chunk, ChunkEntitySlices slices, PoiChunk poiChunk) {
 @@ -208,7 +_,7 @@
  
      @Override
