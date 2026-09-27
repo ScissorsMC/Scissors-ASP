@@ -26,7 +26,7 @@
                  Collections.emptyList(),
                  true,
                  levelStemKey,
-@@ -162,7 +_,8 @@
+@@ -162,9 +_,12 @@
                  new ReadOnlyDimensionDataStorage(CUSTOM_LEVEL_STORAGE_ACCESS.getDimensionPath(dimensionKey), MinecraftServer.getServer().getFixerUpper(), MinecraftServer.getServer().registryAccess()),
                  data
          );
@@ -35,6 +35,10 @@
 +                || slimeBootstrap.initial().getPropertyMap().getValue(SlimeProperties.WORLD_TYPE).equalsIgnoreCase("flat");
  
          this.slimeInstance = new SlimeInMemoryWorld(slimeBootstrap, this);
++        // Scissors - queue saves after any save that an earlier instance of this world still writes
++        this.saveTail = com.infernalsuite.asp.AdvancedSlimePaper.instance().pendingSaves(slimeBootstrap.initial().getName());
+ 
+         super.getChunkSource().setSpawnSettings(propertyMap.getValue(SlimeProperties.ALLOW_MONSTERS), propertyMap.getValue(SlimeProperties.ALLOW_ANIMALS));
  
 @@ -191,6 +_,18 @@
  
@@ -91,15 +95,29 @@
                  try {
                      byte[] serializedWorld = SlimeSerializer.serialize(world);
                      long saveStart = System.currentTimeMillis();
-@@ -249,8 +_,10 @@
+@@ -249,11 +_,21 @@
                      LOGGER.debug("World {} serialized in {}ms and saved in {}ms.", slimeWorld.getName(), saveStart - start, System.currentTimeMillis() - saveStart);
                  } catch (Exception ex) {
                      LOGGER.error("There was an issue saving world {} asynchronously.", slimeWorld.getName(), ex);
 +                    throw new CompletionException(ex);
                  }
 -            });
+-
+-        }
+-    }
 +            }, WORLD_SAVER_SERVICE);
 +            return saveTail;
++
++        }
++    }
++
++    // Scissors start - an unload hands the queued saves to ASP instead of waiting for them
++    public CompletableFuture<Void> pendingSaves() {
++        synchronized (saveLock) {
++            return saveTail;
++        }
++    }
++    // Scissors end
  
-         }
-     }
+     public SlimeWorldInstance getSlimeInstance() {
+         return this.slimeInstance;

@@ -1,0 +1,71 @@
+--- a/main/java/com/infernalsuite/asp/AdvancedSlimePaper.java
++++ b/main/java/com/infernalsuite/asp/AdvancedSlimePaper.java
+@@ -32,6 +_,7 @@
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Objects;
++import java.util.concurrent.CompletableFuture;
+ import java.util.concurrent.ConcurrentHashMap;
+ import java.util.concurrent.ExecutionException;
+ import java.util.concurrent.Future;
+@@ -42,6 +_,7 @@
+     private static final SlimeNMSBridge BRIDGE_INSTANCE = SlimeNMSBridge.instance();
+ 
+     private final Map<String, SlimeWorldInstance> loadedWorlds = new ConcurrentHashMap<>();
++    private final Map<String, CompletableFuture<Void>> pendingSaves = new ConcurrentHashMap<>(); // Scissors - saves still queued after an unload
+ 
+     static {
+         System.setProperty("org.slf4j.simpleLogger.showShortLogName", "true");
+@@ -60,6 +_,7 @@
+         Objects.requireNonNull(worldName, "World name cannot be null");
+         Objects.requireNonNull(propertyMap, "Properties cannot be null");
+ 
++        pendingSaves(worldName).join(); // Scissors - never read a file that an unloaded world is still writing
+         long start = System.currentTimeMillis();
+ 
+         LOGGER.debug("Reading world {}.", worldName);
+@@ -144,6 +_,7 @@
+         } else {
+             LOGGER.info("Saving unloaded world {}...", world.getName());
+             Objects.requireNonNull(world.getLoader(), "World loader cannot be null");
++            pendingSaves(world.getName()).join(); // Scissors - never let an older queued save overwrite this one
+             long start = System.currentTimeMillis();
+ 
+             byte[] serializedWorld = SlimeSerializer.serialize(world);
+@@ -184,6 +_,7 @@
+             throw new WorldAlreadyExistsException(worldName);
+         }
+ 
++        pendingSaves(worldName).join(); // Scissors - migrate the latest saved data
+         byte[] serializedWorld = currentLoader.readWorld(worldName);
+         newLoader.saveWorld(worldName, serializedWorld);
+         currentLoader.deleteWorld(worldName);
+@@ -248,4 +_,28 @@
+     public void onWorldUnload(String name) {
+         this.loadedWorlds.remove(name);
+     }
++
++    // Scissors start - let a world unload before its final save is written
++    @Override
++    public CompletableFuture<Void> pendingSaves(String worldName) {
++        return this.pendingSaves.getOrDefault(worldName, CompletableFuture.completedFuture(null));
++    }
++
++    /**
++     * Records the save queue of an unloaded world. A new instance of the world starts its save queue
++     * after this one, so the latest queue always includes every earlier save.
++     */
++    public void trackPendingSaves(String worldName, CompletableFuture<?> saves) {
++        CompletableFuture<Void> done = saves.handle((unused, failure) -> null);
++        this.pendingSaves.put(worldName, done);
++        done.whenComplete((unused, failure) -> this.pendingSaves.remove(worldName, done));
++    }
++
++    /** Blocks until every save that a world unload queued is written. Shutdown calls this before exit. */
++    public void awaitPendingSaves() {
++        for (CompletableFuture<Void> saves : List.copyOf(this.pendingSaves.values())) {
++            saves.join();
++        }
++    }
++    // Scissors end
+ }

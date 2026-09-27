@@ -17,16 +17,20 @@
                  LOGGER.warn("Failed to halt generation/loading tasks for world '" + WorldUtil.getWorldName(this.world) + "'");
              } else {
                  LOGGER.info("Halted chunk system for world '" + WorldUtil.getWorldName(this.world) + "'");
-@@ -206,6 +_,14 @@
+@@ -206,6 +_,18 @@
  
          if (save) {
              this.saveAllChunks(true, true, true, false);
 +            // Scissors - persist protochunks only after generation has stopped, before closing the world.
 +            if (this.world instanceof com.infernalsuite.asp.level.SlimeLevelInstance slime && slime.slimeInstance.isVanilla()) {
-+                try {
-+                    slime.save().get();
-+                } catch (Exception failure) {
-+                    throw new IllegalStateException("Could not save the closed vanilla slime world", failure);
++                // Take the snapshot on this thread. Only shutdown waits for the write; an unload hands it to ASP.
++                final java.util.concurrent.Future<?> saved = slime.save();
++                if (net.minecraft.server.MinecraftServer.getServer().hasStopped()) {
++                    try {
++                        saved.get();
++                    } catch (Exception failure) {
++                        throw new IllegalStateException("Could not save the closed vanilla slime world", failure);
++                    }
 +                }
 +            }
          }
