@@ -122,8 +122,9 @@ worktrees, and their build scripts are generated from the tracked `api/build.gra
 the dependency versions inlined there mirror ASP's `gradle/libs.versions.toml` and must be revalidated on every
 upstream update.
 
-The ASP commit is pinned by `aspRef` in `gradle.properties`. ASP's branch naming is misleading: `paper_upstream` is the
-branch that carries the current ASP-on-Paper patches, so `aspRef` must be a commit on that branch. The ASP commit
+The ASP commit is pinned by `aspRef` in `gradle.properties`. Check the live branch heads and their `mcVersion` before
+selecting an update. ASP can promote a release to `main` and retain a version branch such as `ver/26.2`. Do not assume
+that `paper_upstream` is the release branch. The ASP commit
 determines the Paper commit beneath it (`paperRef` in ASP's `gradle.properties`), and `paperApiVersion` in this
 repository's `gradle.properties` must name the published Paper API build that matches that Paper commit (copy the
 `version` property from ASP's `gradle.properties`). Do not change these relationships unless the task is specifically
@@ -134,7 +135,7 @@ an upstream update.
 Use public source before reverse-engineering or decompiling build tooling:
 
 - [AdvancedSlimePaper](https://github.com/InfernalSuite/AdvancedSlimePaper) is Scissors ASP's direct upstream. The
-  `paper_upstream` branch carries the ASP patches this fork builds on. Resolve update behavior against the exact
+  selected release branch carries the ASP patches this fork builds on. Resolve update behavior against the exact
   `aspRef`, preferably through paperweight's local ASP checkout.
 - [Paper](https://github.com/PaperMC/Paper) is ASP's upstream. Use the exact `paperRef` pinned by the selected ASP
   commit when investigating Paper-owned code; do not substitute Paper's current branch.
@@ -154,8 +155,8 @@ Treat an ASP update as a patch rebase, not a dependency bump.
 
 1. Confirm the root repository and every generated nested worktree are free of unrelated changes. Fold or commit all
    intended work before changing the upstream reference because patch application can replace generated worktrees.
-2. Set `aspRef` in `gradle.properties` to the full target ASP commit SHA. The commit must be on the `paper_upstream`
-   branch.
+2. Check the live ASP branches and select the maintained release commit for the requested Minecraft version.
+   Set `aspRef` in `gradle.properties` to its full SHA.
 3. Copy the `version` property from the target ASP `gradle.properties` into `paperApiVersion`. If the target commit
    changes Minecraft versions, also copy `mcVersion` and `apiVersion` from the target ASP `gradle.properties`. Do not
    guess these values.
