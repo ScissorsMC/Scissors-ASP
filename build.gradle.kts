@@ -131,3 +131,15 @@ subprojects {
         }
     }
 }
+
+// Patch rebuild tasks stage their output in the same root Git index.
+abstract class PatchIndexLock : org.gradle.api.services.BuildService<org.gradle.api.services.BuildServiceParameters.None>
+
+val patchIndexLock = gradle.sharedServices.registerIfAbsent("patchIndexLock", PatchIndexLock::class) {
+    maxParallelUsages.set(1)
+}
+allprojects {
+    tasks.matching { it.name.startsWith("rebuild") && it.name.endsWith("Patches") }.configureEach {
+        usesService(patchIndexLock)
+    }
+}
