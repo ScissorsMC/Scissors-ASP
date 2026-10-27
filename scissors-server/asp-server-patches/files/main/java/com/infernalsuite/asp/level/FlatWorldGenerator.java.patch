@@ -1,14 +1,24 @@
 --- /dev/null
 +++ b/main/java/com/infernalsuite/asp/level/FlatWorldGenerator.java
-@@ -1,0 +_,197 @@
+@@ -1,0 +_,217 @@
 +package com.infernalsuite.asp.level;
 +
++import ca.spottedleaf.converter.DataConverter;
++import ca.spottedleaf.dataconverter.minecraft.datatypes.MCTypeRegistry;
++import ca.spottedleaf.dataconverter.minecraft.walkers.generic.WalkerUtils;
++import ca.spottedleaf.dataconverter.types.nbt.NBTMapType;
++import com.infernalsuite.asp.Converter;
 +import com.infernalsuite.asp.api.world.SlimeFlatWorldProfile;
 +import com.infernalsuite.asp.api.world.SlimeWorld;
++import net.kyori.adventure.nbt.BinaryTag;
 +import net.kyori.adventure.nbt.CompoundBinaryTag;
++import net.kyori.adventure.nbt.ListBinaryTag;
++import net.minecraft.SharedConstants;
 +import net.minecraft.core.Holder;
 +import net.minecraft.core.registries.BuiltInRegistries;
 +import net.minecraft.core.registries.Registries;
++import net.minecraft.nbt.CompoundTag;
++import net.minecraft.nbt.NbtUtils;
 +import net.minecraft.resources.Identifier;
 +import net.minecraft.resources.ResourceKey;
 +import net.minecraft.server.MinecraftServer;
@@ -54,7 +64,7 @@
 +            BlockState state = parseState(layer.blockState());
 +            Arrays.fill(states, offset, offset + layer.height(), state);
 +            offset += layer.height();
-+            CompoundBinaryTag canonicalState = writeState(state);
++            CompoundBinaryTag canonicalState = Converter.convertTag(NbtUtils.writeBlockState(state));
 +            layers.add(new SlimeFlatWorldProfile.Layer(canonicalState, layer.height()));
 +        }
 +        SlimeFlatWorldProfile profile = new SlimeFlatWorldProfile(requested.version(), requested.minY(), requested.maxY(), requested.startY(),
@@ -67,33 +77,43 @@
 +        return new FlatWorldGenerator(profile, states, biome);
 +    }
 +
++    /** Upgrade the profile's block states from the world's data version, as the data fixers upgrade its chunk palettes. */
++    public static void upgradeProfile(SlimeWorld world) {
++        int currentVersion = SharedConstants.getCurrentVersion().dataVersion().version();
++        if (world.getDataVersion() >= currentVersion
++                || !(world.getExtraData().get(SlimeFlatWorldProfile.EXTRA_DATA_KEY) instanceof CompoundBinaryTag profile)
++                || !(profile.get("layers") instanceof ListBinaryTag layers)) {
++            return;
++        }
++        long fromVersion = DataConverter.encodeVersions(world.getDataVersion(), Integer.MAX_VALUE);
++        long toVersion = DataConverter.encodeVersions(currentVersion, Integer.MAX_VALUE);
++        ListBinaryTag.Builder<BinaryTag> upgraded = ListBinaryTag.builder();
++        for (BinaryTag layer : layers) {
++            if (layer instanceof CompoundBinaryTag compound) {
++                CompoundTag tag = (CompoundTag) Converter.convertTag(compound);
++                WalkerUtils.convert(MCTypeRegistry.BLOCK_STATE, new NBTMapType(tag), "state", fromVersion, toVersion);
++                layer = Converter.convertTag(tag);
++            }
++            upgraded.add(layer);
++        }
++        world.getExtraData().put(SlimeFlatWorldProfile.EXTRA_DATA_KEY, profile.put("layers", upgraded.build()));
++    }
++
 +    private static BlockState parseState(CompoundBinaryTag tag) {
-+        Block block = BuiltInRegistries.BLOCK.getOptional(Identifier.parse(tag.getString("Name")))
-+                .orElseThrow(() -> new IllegalArgumentException("Unknown flat profile block: " + tag.getString("Name")));
++        Block block = BuiltInRegistries.BLOCK.getOptional(Identifier.parse(tag.getString("id")))
++                .orElseThrow(() -> new IllegalArgumentException("Unknown flat profile block: " + tag.getString("id")));
 +        BlockState state = block.defaultBlockState();
-+        for (var entry : tag.getCompound("Properties")) {
++        for (var entry : tag.getCompound("properties")) {
 +            Property<?> property = block.getStateDefinition().getProperty(entry.getKey());
 +            if (property == null) {
 +                throw new IllegalArgumentException("Unknown flat profile block property: " + entry.getKey());
 +            }
-+            state = withProperty(state, property, tag.getCompound("Properties").getString(entry.getKey()));
++            state = withProperty(state, property, tag.getCompound("properties").getString(entry.getKey()));
 +        }
 +        if (state.hasBlockEntity()) {
 +            throw new IllegalArgumentException("Flat profile layers cannot contain block entities");
 +        }
 +        return state;
-+    }
-+
-+    // The profile keeps its own Name/Properties schema, so saved profiles do not follow Minecraft's block-state tag names.
-+    private static CompoundBinaryTag writeState(BlockState state) {
-+        CompoundBinaryTag.Builder tag = CompoundBinaryTag.builder()
-+                .putString("Name", BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString());
-+        if (!state.isSingletonState()) {
-+            CompoundBinaryTag.Builder properties = CompoundBinaryTag.builder();
-+            state.getValues().forEach(value -> properties.putString(value.property().getName(), value.valueName()));
-+            tag.put("Properties", properties.build());
-+        }
-+        return tag.build();
 +    }
 +
 +    private static <T extends Comparable<T>> BlockState withProperty(BlockState state, Property<T> property, String value) {

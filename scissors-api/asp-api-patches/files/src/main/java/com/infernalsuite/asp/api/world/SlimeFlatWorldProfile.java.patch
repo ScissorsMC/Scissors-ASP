@@ -121,16 +121,16 @@
 +    public record Layer(CompoundBinaryTag blockState, int height) {
 +        public Layer {
 +            Objects.requireNonNull(blockState, "blockState");
-+            if (height < 1 || height > 4064 || !(blockState.get("Name") instanceof StringBinaryTag name)
++            if (height < 1 || height > 4064 || !(blockState.get("id") instanceof StringBinaryTag name)
 +                    || !name.value().matches("[a-z0-9_.-]+:[a-z0-9/._-]+")) {
 +                throw new IllegalArgumentException("Invalid flat layer height or block identifier");
 +            }
 +            for (String key : blockState.keySet()) {
-+                if (!key.equals("Name") && !key.equals("Properties")) {
++                if (!key.equals("id") && !key.equals("properties")) {
 +                    throw new IllegalArgumentException("Unknown flat layer state field: " + key);
 +                }
 +            }
-+            BinaryTag properties = blockState.get("Properties");
++            BinaryTag properties = blockState.get("properties");
 +            if (properties != null) {
 +                if (!(properties instanceof CompoundBinaryTag compound)) {
 +                    throw new IllegalArgumentException("Flat layer properties must be a compound tag");
@@ -144,7 +144,7 @@
 +        }
 +
 +        public Layer(String block, int height) {
-+            this(CompoundBinaryTag.builder().putString("Name", block).build(), height);
++            this(CompoundBinaryTag.builder().putString("id", block).build(), height);
 +        }
 +    }
 +}

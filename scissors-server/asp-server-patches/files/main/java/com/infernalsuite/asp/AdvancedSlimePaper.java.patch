@@ -24,6 +24,14 @@
          long start = System.currentTimeMillis();
  
          LOGGER.debug("Reading world {}.", worldName);
+@@ -67,6 +_,7 @@
+ 
+         SlimeWorld slimeWorld = SlimeWorldReaderRegistry.readWorld(loader, worldName, serializedWorld, propertyMap, readOnly);
+         LOGGER.debug("Applying datafixers for {}.", worldName);
++        com.infernalsuite.asp.level.FlatWorldGenerator.upgradeProfile(slimeWorld); // Scissors - upgrade the flat profile with the chunks
+         SlimeWorld dataFixed = SlimeNMSBridge.instance().getSlimeDataConverter().applyDataFixers(slimeWorld);
+ 
+         // If the dataFixed and slimeWorld are same, then no datafixers were applied
 @@ -144,6 +_,7 @@
          } else {
              LOGGER.info("Saving unloaded world {}...", world.getName());
