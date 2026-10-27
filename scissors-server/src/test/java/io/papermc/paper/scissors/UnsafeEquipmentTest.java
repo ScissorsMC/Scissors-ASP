@@ -41,7 +41,6 @@ import net.minecraft.world.level.storage.TagValueOutput;
 import org.bukkit.Bukkit;
 import org.bukkit.craftbukkit.CraftRegistry;
 import org.bukkit.craftbukkit.entity.CraftHumanEntity;
-import org.bukkit.craftbukkit.entity.CraftLivingEntity;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.support.DummyServerHelper;
 import org.bukkit.support.RegistryHelper;
@@ -376,11 +375,6 @@ class UnsafeEquipmentTest {
         public CraftHumanEntity getBukkitEntity() {
             if (this.bukkit == null) this.bukkit = mock(CraftHumanEntity.class);
             return this.bukkit;
-        }
-
-        @Override
-        public CraftLivingEntity getBukkitLivingEntity() {
-            return this.getBukkitEntity();
         }
 
         void loadTag(final CompoundTag tag) {

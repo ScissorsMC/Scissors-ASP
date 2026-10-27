@@ -1,6 +1,6 @@
 --- a/net/minecraft/server/MinecraftServer.java
 +++ b/net/minecraft/server/MinecraftServer.java
-@@ -1065,6 +_,7 @@
+@@ -1047,6 +_,7 @@
          // Paper end - rewrite chunk system
  
          this.saveAllChunks(false, true, false, true); // Paper - rewrite chunk system

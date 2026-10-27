@@ -1,14 +1,5 @@
 --- a/aspaper-server/build.gradle.kts
 +++ b/aspaper-server/build.gradle.kts
-@@ -8,7 +_,7 @@
-     `maven-publish`
-     idea
-     id("io.papermc.paperweight.core")
--    id("io.papermc.fill.gradle") version "1.0.12"
-+    id("io.papermc.fill.gradle") version "1.0.14"
- }
- 
- val paperMavenPublicUrl = "https://repo.papermc.io/repository/maven-public/"
 @@ -23,6 +_,8 @@
      gitFilePatches = false
  
@@ -54,9 +45,9 @@
 -    implementation(project(":aspaper-api")) //ASP
 +    implementation(project(":scissors-api")) // Scissors-ASP
      implementation(project(":core")) //ASP
-     implementation("ca.spottedleaf:leafpile:1.2.0")
-     implementation("org.jline:jline-terminal-ffm:3.27.1") // use ffm on java 22+
-@@ -195,18 +_,19 @@
+     implementation(platform("ca.spottedleaf.leafpile:bom:1.2.4"))
+     implementation("ca.spottedleaf.leafpile:common")
+@@ -197,18 +_,19 @@
          val gitBranch = git.exec(providers, "rev-parse", "--abbrev-ref", "HEAD").get().trim()
          attributes(
              "Main-Class" to "org.bukkit.craftbukkit.Main",
@@ -81,7 +72,7 @@
          )
          for (tld in setOf("net", "com", "org")) {
              attributes("$tld/bukkit", "Sealed" to true)
-@@ -351,7 +_,7 @@
+@@ -365,7 +_,7 @@
  }
  
  fill {

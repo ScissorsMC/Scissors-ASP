@@ -7,8 +7,8 @@
 +import com.infernalsuite.asp.api.world.SlimeFlatWorldProfile;
  import com.infernalsuite.asp.api.world.properties.SlimeProperties;
  import com.infernalsuite.asp.api.world.properties.SlimePropertyMap;
- import net.kyori.adventure.nbt.BinaryTagTypes;
-@@ -14,6 +_,10 @@
+ import net.kyori.adventure.nbt.*;
+@@ -12,6 +_,10 @@
  public class ChunkPruner {
  
      public static boolean canBePruned(SlimeWorld world, SlimeChunk chunk) {

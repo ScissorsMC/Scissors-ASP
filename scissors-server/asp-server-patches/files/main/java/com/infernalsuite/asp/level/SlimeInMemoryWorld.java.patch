@@ -15,8 +15,8 @@
 +import net.minecraft.world.level.chunk.ImposterProtoChunk;
  import net.minecraft.world.level.chunk.LevelChunk;
  import net.minecraft.world.level.chunk.UpgradeData;
- import net.minecraft.world.level.material.Fluid;
-@@ -54,6 +_,8 @@
+ import net.minecraft.world.level.levelgen.densityfunction.SamplerContext;
+@@ -55,6 +_,8 @@
      private final AdventurePersistentDataContainer extraPDC;
      private final SlimePropertyMap propertyMap;
      private final SlimeLoader loader;
@@ -25,7 +25,7 @@
  
      private final Long2ObjectMap<SlimeChunk> chunkStorage = new Long2ObjectOpenHashMap<>();
      private boolean readOnly;
-@@ -63,6 +_,11 @@
+@@ -64,6 +_,11 @@
          this.extra = bootstrap.initial().getExtraData();
          this.propertyMap = bootstrap.initial().getPropertyMap();
          this.loader = bootstrap.initial().getLoader();
@@ -37,7 +37,7 @@
          this.readOnly = bootstrap.initial().isReadOnly();
  
          for (SlimeChunk initial : bootstrap.initial().getChunkStorage()) {
-@@ -85,6 +_,7 @@
+@@ -86,6 +_,7 @@
      }
  
      public LevelChunk createChunk(int x, int z, SlimeChunk chunk) {
@@ -45,9 +45,9 @@
          SlimeChunkLevel levelChunk;
          if (chunk == null) {
              net.minecraft.world.level.ChunkPos pos = new net.minecraft.world.level.ChunkPos(x, z);
-@@ -98,6 +_,10 @@
-             levelChunk.fillBiomesFromNoise(instance.getChunkSource().getGenerator().getBiomeSource(),
-                     instance.getChunkSource().randomState().sampler());
+@@ -99,6 +_,10 @@
+             levelChunk.fillBiomesFromNoise(instance.getChunkSource().getGenerator().getBiomeSource().createResolver(
+                     instance.getChunkSource().randomState().createClimateSampler(SamplerContext.EMPTY_UNCACHED)));
  
 +            if (this.flatWorldGenerator != null) {
 +                this.flatWorldGenerator.generate(levelChunk);
@@ -56,7 +56,7 @@
          } else {
              levelChunk = SlimeChunkConverter.deserializeSlimeChunk(this.instance, chunk);
          }
-@@ -110,10 +_,11 @@
+@@ -111,10 +_,11 @@
      // Authored by: Kenox <muranelp@gmail.com>
      // Don't use the NMS live chunk in the chunk map
      public void unload(LevelChunk providedChunk, ChunkEntitySlices slices, PoiChunk poiChunk) {
@@ -69,7 +69,7 @@
              this.chunkStorage.remove(Util.chunkPosition(x, z));
              return;
          }
-@@ -176,6 +_,16 @@
+@@ -177,6 +_,16 @@
  
      @Override
      public SlimeWorld getSerializableCopy() {
@@ -86,7 +86,7 @@
          SlimeWorld world = SkeletonCloning.weakCopy(this);
  
          Long2ObjectMap<SlimeChunk> cloned = new Long2ObjectOpenHashMap<>();
-@@ -289,6 +_,67 @@
+@@ -290,6 +_,67 @@
  
      public SlimeLevelInstance getInstance() {
          return instance;

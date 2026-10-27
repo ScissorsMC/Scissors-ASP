@@ -6,10 +6,10 @@ Subject: [PATCH] Prevent unsafe equipment state and repair saved players
 Port component, attribute, and player equipment storage invariants from Scissors 26.2. Repair legacy hidden equipment on player load and preserve safe items without replaying enchantment actions.
 
 diff --git a/net/minecraft/core/component/DataComponentPatch.java b/net/minecraft/core/component/DataComponentPatch.java
-index 5405802c11747eb0954bf3e19140dc8c778f048d..cc45c24b3b7e0188ac2334b0e750f1f43e75c72e 100644
+index 8202975a9668e137b2825bf7510b3221841bdf4b..99ddcd8070133857bbd889c8bce1bc398c430bf2 100644
 --- a/net/minecraft/core/component/DataComponentPatch.java
 +++ b/net/minecraft/core/component/DataComponentPatch.java
-@@ -112,6 +112,7 @@ public final class DataComponentPatch {
+@@ -103,6 +103,7 @@ public final class DataComponentPatch {
          return new StreamCodec<RegistryFriendlyByteBuf, DataComponentPatch>() {
              @Override
              public DataComponentPatch decode(final RegistryFriendlyByteBuf input) {
@@ -17,7 +17,7 @@ index 5405802c11747eb0954bf3e19140dc8c778f048d..cc45c24b3b7e0188ac2334b0e750f1f4
                  int positiveCount = input.readVarInt();
                  int negativeCount = input.readVarInt();
                  if (positiveCount == 0 && negativeCount == 0) {
-@@ -168,7 +169,8 @@ public final class DataComponentPatch {
+@@ -159,7 +160,8 @@ public final class DataComponentPatch {
                  DataComponentPatch sanitized = decoded.sanitizeOversized(
                      countingOps, delimited ? "untrusted network decode" : "network decode"
                  );
@@ -28,10 +28,10 @@ index 5405802c11747eb0954bf3e19140dc8c778f048d..cc45c24b3b7e0188ac2334b0e750f1f4
  
              @Override
 diff --git a/net/minecraft/server/level/ServerPlayer.java b/net/minecraft/server/level/ServerPlayer.java
-index 3cd4e850f223100b61ac6831a87dd38f3a3bb58f..dd457a361e9fb6851eeb158c9bccb0325b33128c 100644
+index 1137be30f125cb79f05f3e5c104cdf8cca979ff1..6b6fa449ee5a2cb2fdd88bee58b73496b10b93c8 100644
 --- a/net/minecraft/server/level/ServerPlayer.java
 +++ b/net/minecraft/server/level/ServerPlayer.java
-@@ -2146,6 +2146,7 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+@@ -2214,6 +2214,7 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
      }
  
      public void restoreFrom(final ServerPlayer oldPlayer, final boolean restoreAll) {
@@ -40,11 +40,11 @@ index 3cd4e850f223100b61ac6831a87dd38f3a3bb58f..dd457a361e9fb6851eeb158c9bccb032
          this.chatSession = oldPlayer.chatSession;
          this.gameMode.setGameModeForPlayer(oldPlayer.gameMode.getGameModeForPlayer(), oldPlayer.gameMode.getPreviousGameModeForPlayer());
 diff --git a/net/minecraft/world/entity/LivingEntity.java b/net/minecraft/world/entity/LivingEntity.java
-index 3a4da514c163e7565fc241835db52c464a5c4734..876d091fcba1dcd1a8b7d0794ab759fe0ba8ce88 100644
+index 23297b54c74684765f90e9e599d051a44357e9a5..82104af9dc07eaffebd6b067d3fb0f670ebacd63 100644
 --- a/net/minecraft/world/entity/LivingEntity.java
 +++ b/net/minecraft/world/entity/LivingEntity.java
-@@ -4712,7 +4712,7 @@ public abstract class LivingEntity extends Entity implements Attackable, Waypoin
-         this.stopLocationBasedEffects(this.getItemBySlot(inSlot), inSlot, this.attributes);
+@@ -4773,7 +4773,7 @@ public abstract class LivingEntity extends Entity implements Attackable, Waypoin
+         this.stopLocationBasedEffects(brokenItem, inSlot, this.attributes);
      }
  
 -    private void stopLocationBasedEffects(final ItemStack previous, final EquipmentSlot inSlot, final AttributeMap attributes) {
@@ -160,14 +160,14 @@ index 82fb9b7092ee37bb4b46ad9a352df64821259ddc..833fd1c795c88e098176bba10363edb2
  
          this.setDirty();
 diff --git a/net/minecraft/world/entity/player/Player.java b/net/minecraft/world/entity/player/Player.java
-index 2a71a2fa949b3a7fb8ff2c44ec3a3d8636237142..068d5257ec8c5a6010cb29d54a239686f5d6ede9 100644
+index 4068dc1cea4edca196dc0c58b4804e94dd07881e..c80dbc260f4884f6357ad40e9c12330296d6a531 100644
 --- a/net/minecraft/world/entity/player/Player.java
 +++ b/net/minecraft/world/entity/player/Player.java
-@@ -150,6 +150,11 @@ public abstract class Player extends Avatar implements ContainerUser {
+@@ -149,6 +149,11 @@ public abstract class Player extends Avatar implements ContainerUser {
      private static final int DEFAULT_SCORE = 0;
      public static final float CREATIVE_ENTITY_INTERACTION_RANGE_MODIFIER_VALUE = 2.0F;
      private final Inventory inventory;
-+    private final List<ItemStack> recoveredEquipment = new java.util.ArrayList<>(); // Scissors - preserve recovery overflow across saves without cancellable drops
++    private final List<ItemStack> recoveredEquipment = new ArrayList<>(); // Scissors - preserve recovery overflow across saves without cancellable drops
 +    private boolean equipmentRecoveryPending;
 +    private boolean refreshRecoveredEquipmentEffects;
 +    private boolean loadingEquipment;
@@ -175,7 +175,7 @@ index 2a71a2fa949b3a7fb8ff2c44ec3a3d8636237142..068d5257ec8c5a6010cb29d54a239686
      protected PlayerEnderChestContainer enderChestInventory = new PlayerEnderChestContainer(this); // CraftBukkit - add "this" to constructor
      public final InventoryMenu inventoryMenu;
      public AbstractContainerMenu containerMenu;
-@@ -660,7 +665,21 @@ public abstract class Player extends Avatar implements ContainerUser {
+@@ -652,7 +657,21 @@ public abstract class Player extends Avatar implements ContainerUser {
  
      @Override
      protected void readAdditionalSaveData(final ValueInput input) {
@@ -198,7 +198,7 @@ index 2a71a2fa949b3a7fb8ff2c44ec3a3d8636237142..068d5257ec8c5a6010cb29d54a239686
          this.setUUID(this.gameProfile.id());
          this.inventory.load(input.listOrEmpty("Inventory", ItemStackWithSlot.CODEC));
          this.inventory.setSelectedSlot(input.getIntOr("SelectedItemSlot", 0));
-@@ -679,6 +698,7 @@ public abstract class Player extends Avatar implements ContainerUser {
+@@ -671,6 +690,7 @@ public abstract class Player extends Avatar implements ContainerUser {
          this.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(this.abilities.getWalkingSpeed());
          this.enderChestInventory.fromSlots(input.listOrEmpty("EnderItems", ItemStackWithSlot.CODEC));
          this.setLastDeathLocation(input.read("LastDeathLocation", GlobalPos.CODEC));
@@ -206,7 +206,7 @@ index 2a71a2fa949b3a7fb8ff2c44ec3a3d8636237142..068d5257ec8c5a6010cb29d54a239686
      }
  
      @Override
-@@ -697,6 +717,7 @@ public abstract class Player extends Avatar implements ContainerUser {
+@@ -689,6 +709,7 @@ public abstract class Player extends Avatar implements ContainerUser {
          output.store("abilities", Abilities.Packed.CODEC, this.abilities.pack());
          this.enderChestInventory.storeAsSlots(output.list("EnderItems", ItemStackWithSlot.CODEC));
          this.lastDeathLocation.ifPresent(pos -> output.store("LastDeathLocation", GlobalPos.CODEC, pos));
@@ -214,7 +214,7 @@ index 2a71a2fa949b3a7fb8ff2c44ec3a3d8636237142..068d5257ec8c5a6010cb29d54a239686
      }
  
      @Override
-@@ -1991,7 +2012,42 @@ public abstract class Player extends Avatar implements ContainerUser {
+@@ -1986,7 +2007,42 @@ public abstract class Player extends Avatar implements ContainerUser {
      // Paper start - Force update attributes.
      @Override
      public void detectEquipmentUpdates() {
@@ -257,7 +257,7 @@ index 2a71a2fa949b3a7fb8ff2c44ec3a3d8636237142..068d5257ec8c5a6010cb29d54a239686
  
          if (!io.papermc.paper.configuration.GlobalConfiguration.get().unsupportedSettings.updateEquipmentOnPlayerActions) {
              return;
-@@ -2009,6 +2065,61 @@ public abstract class Player extends Avatar implements ContainerUser {
+@@ -2004,6 +2060,61 @@ public abstract class Player extends Avatar implements ContainerUser {
      }
      // Paper end - Force update attributes.
  
@@ -353,7 +353,7 @@ index e59787c1698e96df98ef4cf98d62b4a67c4e95dc..607d573e221d590a6d7f33b9885dea5e
      public ItemStack get(final EquipmentSlot slot) {
          return slot == EquipmentSlot.MAINHAND ? this.player.getInventory().getSelectedItem() : super.get(slot);
 diff --git a/net/minecraft/world/item/component/ItemAttributeModifiers.java b/net/minecraft/world/item/component/ItemAttributeModifiers.java
-index 584b352fb5d37d95e0545b65d8cfd71d70292c19..e3de1e6526819e001291d7c0bde8b785be5adeaf 100644
+index 491f34acb2a145efb8d33119762a44b43a863c6c..1eefae04ea34e4fcadbffe66f99fd510586fa20a 100644
 --- a/net/minecraft/world/item/component/ItemAttributeModifiers.java
 +++ b/net/minecraft/world/item/component/ItemAttributeModifiers.java
 @@ -34,6 +34,14 @@ import org.apache.commons.lang3.function.TriConsumer;
@@ -372,10 +372,10 @@ index 584b352fb5d37d95e0545b65d8cfd71d70292c19..e3de1e6526819e001291d7c0bde8b785
      public static final Codec<ItemAttributeModifiers> CODEC = ItemAttributeModifiers.Entry.CODEC
          .listOf()
 diff --git a/net/minecraft/world/item/equipment/Equippable.java b/net/minecraft/world/item/equipment/Equippable.java
-index 30e52dce9536cda641f6ca290181bd926311dbe3..ee33851c2ff65a8095f0f35d5476999a6af44c64 100644
+index b0c7b15632bf08808fb9d943f7b3462400f89f56..3e75b0a338536aac672acc17d0e5227200e568a6 100644
 --- a/net/minecraft/world/item/equipment/Equippable.java
 +++ b/net/minecraft/world/item/equipment/Equippable.java
-@@ -43,7 +43,15 @@ public record Equippable(
+@@ -44,7 +44,15 @@ public record Equippable(
      boolean canBeSheared,
      Holder<SoundEvent> shearingSound
  ) {
@@ -392,7 +392,7 @@ index 30e52dce9536cda641f6ca290181bd926311dbe3..ee33851c2ff65a8095f0f35d5476999a
          i -> i.group(
                  EquipmentSlot.CODEC.fieldOf("slot").forGetter(Equippable::slot),
                  SoundEvent.CODEC.optionalFieldOf("equip_sound", SoundEvents.ARMOR_EQUIP_GENERIC).forGetter(Equippable::equipSound),
-@@ -60,7 +68,7 @@ public record Equippable(
+@@ -61,7 +69,7 @@ public record Equippable(
                      .forGetter(Equippable::shearingSound)
              )
              .apply(i, Equippable::new)
@@ -401,7 +401,7 @@ index 30e52dce9536cda641f6ca290181bd926311dbe3..ee33851c2ff65a8095f0f35d5476999a
      public static final StreamCodec<RegistryFriendlyByteBuf, Equippable> STREAM_CODEC = StreamCodec.composite(
          EquipmentSlot.STREAM_CODEC,
          Equippable::slot,
-@@ -85,7 +93,7 @@ public record Equippable(
+@@ -86,7 +94,7 @@ public record Equippable(
          SoundEvent.STREAM_CODEC,
          Equippable::shearingSound,
          Equippable::new
@@ -410,7 +410,7 @@ index 30e52dce9536cda641f6ca290181bd926311dbe3..ee33851c2ff65a8095f0f35d5476999a
  
      public static Equippable llamaSwag(final DyeColor color) {
          return builder(EquipmentSlot.BODY)
-@@ -186,6 +194,7 @@ public record Equippable(
+@@ -187,6 +195,7 @@ public record Equippable(
      }
  
      public boolean canBeEquippedBy(final Holder<EntityType<?>> type) {

@@ -1,16 +1,14 @@
 --- /dev/null
 +++ b/main/java/com/infernalsuite/asp/level/FlatWorldGenerator.java
-@@ -1,0 +_,187 @@
+@@ -1,0 +_,197 @@
 +package com.infernalsuite.asp.level;
 +
-+import com.infernalsuite.asp.Converter;
 +import com.infernalsuite.asp.api.world.SlimeFlatWorldProfile;
 +import com.infernalsuite.asp.api.world.SlimeWorld;
 +import net.kyori.adventure.nbt.CompoundBinaryTag;
 +import net.minecraft.core.Holder;
 +import net.minecraft.core.registries.BuiltInRegistries;
 +import net.minecraft.core.registries.Registries;
-+import net.minecraft.nbt.NbtUtils;
 +import net.minecraft.resources.Identifier;
 +import net.minecraft.resources.ResourceKey;
 +import net.minecraft.server.MinecraftServer;
@@ -56,7 +54,7 @@
 +            BlockState state = parseState(layer.blockState());
 +            Arrays.fill(states, offset, offset + layer.height(), state);
 +            offset += layer.height();
-+            CompoundBinaryTag canonicalState = Converter.convertTag(NbtUtils.writeBlockState(state));
++            CompoundBinaryTag canonicalState = writeState(state);
 +            layers.add(new SlimeFlatWorldProfile.Layer(canonicalState, layer.height()));
 +        }
 +        SlimeFlatWorldProfile profile = new SlimeFlatWorldProfile(requested.version(), requested.minY(), requested.maxY(), requested.startY(),
@@ -84,6 +82,18 @@
 +            throw new IllegalArgumentException("Flat profile layers cannot contain block entities");
 +        }
 +        return state;
++    }
++
++    // The profile keeps its own Name/Properties schema, so saved profiles do not follow Minecraft's block-state tag names.
++    private static CompoundBinaryTag writeState(BlockState state) {
++        CompoundBinaryTag.Builder tag = CompoundBinaryTag.builder()
++                .putString("Name", BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString());
++        if (!state.isSingletonState()) {
++            CompoundBinaryTag.Builder properties = CompoundBinaryTag.builder();
++            state.getValues().forEach(value -> properties.putString(value.property().getName(), value.valueName()));
++            tag.put("Properties", properties.build());
++        }
++        return tag.build();
 +    }
 +
 +    private static <T extends Comparable<T>> BlockState withProperty(BlockState state, Property<T> property, String value) {
