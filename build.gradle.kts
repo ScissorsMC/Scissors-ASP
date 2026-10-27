@@ -120,15 +120,8 @@ subprojects {
 
     if (name == "api" || name == "scissors-api") {
         // Maven API versions are canonical Minecraft versions, not separate API releases or server build numbers.
+        // telesphorepo publish uploads both APIs to the repository that telesphorepo.toml names.
         version = providers.gradleProperty("mcVersion").get().trim()
-        extensions.configure<PublishingExtension> {
-            repositories {
-                maven("https://nexus.telesphoreo.me/repository/scissors-snapshots/") {
-                    name = "plex"
-                    credentials(PasswordCredentials::class)
-                }
-            }
-        }
     }
 }
 
