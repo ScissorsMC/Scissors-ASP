@@ -117,12 +117,6 @@ subprojects {
         mavenCentral()
         maven(paperMavenPublicUrl)
     }
-
-    if (name == "api" || name == "scissors-api") {
-        // Maven API versions are canonical Minecraft versions, not separate API releases or server build numbers.
-        // telesphorepo publish uploads both APIs to the repository that telesphorepo.toml names.
-        version = providers.gradleProperty("mcVersion").get().trim()
-    }
 }
 
 // Patch rebuild tasks stage their output in the same root Git index.
