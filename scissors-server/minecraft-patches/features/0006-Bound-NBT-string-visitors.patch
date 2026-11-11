@@ -27,7 +27,7 @@ index a24867bc68b6207b851f8cc11f74be1999be8ab4..230fff00a88c699ba3e62bec663f75f5
      }
  
 diff --git a/net/minecraft/nbt/CompoundTag.java b/net/minecraft/nbt/CompoundTag.java
-index 78d6226922cce2aea1ad56e78352ab8fffba6d0c..da3cfb0530808cc46e8a89b3ad88c2cdf4a7f184 100644
+index f9eb0c985fe67df8acb5a933ed7a66f3af40b5f2..867eecd9bea8bdccf417ced0daa18e656cc7eff1 100644
 --- a/net/minecraft/nbt/CompoundTag.java
 +++ b/net/minecraft/nbt/CompoundTag.java
 @@ -31,7 +31,7 @@ public final class CompoundTag implements Tag {
@@ -39,7 +39,7 @@ index 78d6226922cce2aea1ad56e78352ab8fffba6d0c..da3cfb0530808cc46e8a89b3ad88c2cd
              },
              t -> new Dynamic<>(NbtOps.INSTANCE, t.copy())
          );
-@@ -532,7 +532,7 @@ public final class CompoundTag implements Tag {
+@@ -559,7 +559,7 @@ public final class CompoundTag implements Tag {
          Tag tag = this.get(name);
          return tag == null
              ? Optional.empty()
@@ -48,7 +48,7 @@ index 78d6226922cce2aea1ad56e78352ab8fffba6d0c..da3cfb0530808cc46e8a89b3ad88c2cd
      }
  
      public <T> Optional<T> read(final MapCodec<T> codec) { // Paper - option to read via codec without logging errors - diff on change
-@@ -540,7 +540,7 @@ public final class CompoundTag implements Tag {
+@@ -567,7 +567,7 @@ public final class CompoundTag implements Tag {
      }
  
      public <T> Optional<T> read(final MapCodec<T> codec, final DynamicOps<Tag> ops) { // Paper - option to read via codec without logging errors - diff on change
@@ -730,7 +730,7 @@ index 6273c3b9563d4ac6d1e856f06058ec599ebcc60d..1986114c5f0d1855e39fd933fd974c67
          if (SIMPLE_VALUE.matcher(input).matches()) {
              return Component.literal(input).withStyle(this.styling.keyStyle());
 diff --git a/net/minecraft/network/FriendlyByteBuf.java b/net/minecraft/network/FriendlyByteBuf.java
-index b63d24683f7b3b1f11e927cf4261ff2d05cdbd38..4ede6baa51287adeaccb27ceef263237c805cd6c 100644
+index 4f2bd2e89f683bbc148e49cc8262c9b1f4544031..60ceb443d34823186a42e87726415534856045ea 100644
 --- a/net/minecraft/network/FriendlyByteBuf.java
 +++ b/net/minecraft/network/FriendlyByteBuf.java
 @@ -78,7 +78,7 @@ public class FriendlyByteBuf extends ByteBuf {

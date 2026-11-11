@@ -126,7 +126,7 @@ index 6e43fa866f5d852ae37a7b901bd4e76ca27bd4f9..7de55168afb47f389631644b8c040bed
                                            final int maxCount) {
              if (this.count == 0) {
 diff --git a/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/EntityLookup.java b/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/EntityLookup.java
-index 328784ba08236553e49d62320b79f7222292412f..67ecdb17331018b2cbe65d0d7afc76141c656e9e 100644
+index 99b5026d8dfa9668caf15e9ae27619d9d433b441..489a50e0aa273ae0b0a1442df23a93b1c87e0412 100644
 --- a/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/EntityLookup.java
 +++ b/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/EntityLookup.java
 @@ -12,6 +12,7 @@ import net.minecraft.util.AbortableIterationConsumer;
@@ -164,7 +164,7 @@ index 328784ba08236553e49d62320b79f7222292412f..67ecdb17331018b2cbe65d0d7afc7614
 +            return false;
 +        }
 +
-         Entity currentlyMapped = this.entityById.putIfAbsent((long)entity.getId(), entity);
+         Entity currentlyMapped = this.entityById.putIfAbsent(entity.getId(), entity);
          if (currentlyMapped != null) {
              LOGGER.warn("Entity id already exists: " + entity.getId() + ", mapped to " + currentlyMapped + ", can't add " + entity);
 @@ -728,6 +745,31 @@ public abstract class EntityLookup implements LevelEntityGetter<Entity> {

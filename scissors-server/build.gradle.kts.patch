@@ -45,9 +45,9 @@
 -    implementation(project(":aspaper-api")) //ASP
 +    implementation(project(":scissors-api")) // Scissors-ASP
      implementation(project(":core")) //ASP
-     implementation(platform("ca.spottedleaf.leafpile:bom:1.2.4"))
+     implementation(platform("ca.spottedleaf.leafpile:bom:1.3.2"))
      implementation("ca.spottedleaf.leafpile:common")
-@@ -197,18 +_,19 @@
+@@ -198,18 +_,19 @@
          val gitBranch = git.exec(providers, "rev-parse", "--abbrev-ref", "HEAD").get().trim()
          attributes(
              "Main-Class" to "org.bukkit.craftbukkit.Main",
@@ -72,7 +72,7 @@
          )
          for (tld in setOf("net", "com", "org")) {
              attributes("$tld/bukkit", "Sealed" to true)
-@@ -365,7 +_,7 @@
+@@ -366,7 +_,7 @@
  }
  
  fill {

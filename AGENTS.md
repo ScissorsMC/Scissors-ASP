@@ -126,9 +126,9 @@ The ASP commit is pinned by `aspRef` in `gradle.properties`. Check the live bran
 selecting an update. ASP can promote a release to `main` and retain a version branch such as `ver/26.2`. Do not assume
 that `paper_upstream` is the release branch. The ASP commit
 determines the Paper commit beneath it (`paperRef` in ASP's `gradle.properties`), and `paperApiVersion` in this
-repository's `gradle.properties` must name the published Paper API build that matches that Paper commit (copy the
-`version` property from ASP's `gradle.properties`). Do not change these relationships unless the task is specifically
-an upstream update.
+repository's `gradle.properties` must name the published Paper API build whose commit is that `paperRef`. ASP's own
+`version` property can lag its `paperRef`, so do not copy it. Do not change these relationships unless the task is
+specifically an upstream update.
 
 ### Authoritative upstream source references
 
@@ -157,9 +157,13 @@ Treat an ASP update as a patch rebase, not a dependency bump.
    intended work before changing the upstream reference because patch application can replace generated worktrees.
 2. Check the live ASP branches and select the maintained release commit for the requested Minecraft version.
    Set `aspRef` in `gradle.properties` to its full SHA.
-3. Copy the `version` property from the target ASP `gradle.properties` into `paperApiVersion`. If the target commit
-   changes Minecraft versions, also copy `mcVersion` and `apiVersion` from the target ASP `gradle.properties`. Do not
-   guess these values.
+3. Read `paperRef` from the target ASP `gradle.properties`, find the Paper build for that commit in the Paper builds
+   API (`https://fill.papermc.io/v3/projects/paper/versions/<mcVersion>/builds`), and set `paperApiVersion` to that
+   build's published version, such as `26.3.build.235-stable`. Confirm the version exists in Paper's Maven repository.
+   If the target commit changes Minecraft versions, also copy `mcVersion` and `apiVersion` from the target ASP
+   `gradle.properties`. Do not guess these values. When ASP compiles its slime modules against an older Paper API
+   build than its `paperRef`, the build here can fail on API methods ASP has not implemented yet; port ASP's fix as a
+   Scissors patch and drop it once the pinned ASP commit contains it.
 4. Compare the target ASP root build files, `gradle/libs.versions.toml`, buildSrc conventions, Gradle wrapper,
    Java/toolchain requirements, and paperweight configuration with this repository. Port only changes required to
    build the new target; retain Scissors project names, group, branding, repositories, and owned build behavior. In
